@@ -1,27 +1,42 @@
 .field {
   display: grid;
-  gap: 0.35rem;
-  font-size: 0.875rem;
+  gap: 0.4rem;
+  color: rgb(24 24 27);
+  font-size: 14px;
   font-weight: 500;
 }
 
-.field input,
+.field span {
+  color: rgb(24 24 27);
+  font-size: 14px;
+  line-height: 1.25rem;
+}
+
+.field input:not([type="checkbox"]):not([type="file"]),
 .field select,
 .field textarea {
   appearance: auto;
   width: 100%;
-  min-height: 2.625rem;
+  min-height: 42px;
   border: 1px solid rgb(212 212 216);
-  border-radius: 0.375rem;
+  border-radius: 6px;
   background: white;
-  padding: 0.55rem 0.7rem;
+  padding: 9px 11px;
   color: rgb(24 24 27);
+  font-size: 14px;
   font-weight: 400;
+  line-height: 1.25rem;
   outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
+.field select {
+  cursor: pointer;
 }
 
 .field textarea {
   min-height: 6rem;
+  resize: vertical;
 }
 
 .field input::placeholder,
@@ -30,11 +45,63 @@
   opacity: 0.75;
 }
 
-.field input:focus,
+.field input:not([type="checkbox"]):not([type="file"]):focus,
 .field select:focus,
 .field textarea:focus {
   border-color: rgb(24 24 27);
   box-shadow: 0 0 0 3px rgb(24 24 27 / 0.08);
+}
+
+.field input[type="file"] {
+  width: 100%;
+  border: 1px solid rgb(212 212 216);
+  border-radius: 6px;
+  background: white;
+  color: rgb(24 24 27);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.25rem;
+  padding: 8px;
+}
+
+.field input[type="file"]::file-selector-button {
+  margin-right: 10px;
+  border: 1px solid rgb(212 212 216);
+  border-radius: 5px;
+  background: rgb(250 250 250);
+  color: rgb(24 24 27);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 10px;
+}
+
+.field input[type="file"]::file-selector-button:hover {
+  background: rgb(244 244 245);
+}
+
+.field input[type="file"]:focus {
+  border-color: rgb(24 24 27);
+  box-shadow: 0 0 0 3px rgb(24 24 27 / 0.08);
+  outline: none;
+}
+
+.field input[type="checkbox"] {
+  appearance: auto;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  border: 1px solid rgb(161 161 170);
+  border-radius: 4px;
+  accent-color: rgb(24 24 27);
+  cursor: pointer;
+  padding: 0;
+}
+
+.field input[type="checkbox"]:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(24 24 27 / 0.12);
 }
 
 .status-pill {
