@@ -8,7 +8,7 @@
     <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ vehicle.brand }} {{ vehicle.model }}</h1>
     <p class="mt-1 text-sm text-zinc-600">{{ vehicle.plate }}{% if vehicle.year %} / {{ vehicle.year }}{% endif %}{% if vehicle.color %} / {{ vehicle.color }}{% endif %}</p>
   </div>
-  <span class="status-pill status-{{ vehicle.status }}">{{ vehicle.status }}</span>
+  <span class="status-pill status-{{ 'assigned' if active_loan else vehicle.status }}">{{ 'assigned' if active_loan else vehicle.status }}</span>
 </div>
 
 {% if vehicle.status == "retired" %}
@@ -26,7 +26,7 @@
 {% endif %}
 
 <section class="rounded-lg border border-zinc-200 bg-white p-6">
-  {% if vehicle.status == "available" %}
+  {% if vehicle.status == "available" and not active_loan %}
   <h2 class="text-lg font-semibold">Registrar entrega</h2>
   <form action="/vehicles/{{ vehicle.id }}/deliver" method="post" enctype="multipart/form-data" class="mt-6 space-y-6">
     <input type="hidden" name="redirect_to" value="operator">

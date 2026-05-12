@@ -10,7 +10,7 @@
   </div>
   <div class="flex items-center gap-3">
     <a href="/vehicles/{{ vehicle.id }}/edit" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Editar vehiculo</a>
-    <span class="status-pill status-{{ vehicle.status }}">{{ vehicle.status }}</span>
+    <span class="status-pill status-{{ 'assigned' if active_loan else vehicle.status }}">{{ 'assigned' if active_loan else vehicle.status }}</span>
   </div>
 </div>
 
@@ -28,7 +28,7 @@
 {% endif %}
 
 <div class="grid gap-6 lg:grid-cols-[1fr_1fr]">
-  {% if vehicle.status == "available" %}
+  {% if vehicle.status == "available" and not active_loan %}
   <section class="rounded-lg border border-zinc-200 bg-white p-6">
     <h2 class="text-lg font-semibold">Registrar entrega</h2>
     <form action="/vehicles/{{ vehicle.id }}/deliver" method="post" enctype="multipart/form-data" class="mt-5 space-y-5">
