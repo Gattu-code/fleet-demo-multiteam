@@ -3,9 +3,14 @@ services:
     build:
       context: .
     restart: unless-stopped
+    user: "0:0"
     environment:
       DATABASE_URL: sqlite:////app/data/fleet.db
       UPLOAD_DIR: /app/uploads
+    command: >
+      sh -c "mkdir -p /app/data /app/uploads
+      && chmod -R 777 /app/data /app/uploads
+      && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     volumes:
       - fleet_data:/app/data
       - fleet_uploads:/app/uploads

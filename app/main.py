@@ -91,12 +91,17 @@ def save_upload(file: UploadFile | None, prefix: str, directory: Path) -> str | 
     if not file or not file.filename:
         return None
 
+    directory.mkdir(parents=True, exist_ok=True)
+    content = file.file.read()
+    if not content:
+        return None
+
     suffix = Path(file.filename).suffix.lower()
     filename = f"{prefix}-{uuid4().hex}{suffix}"
     path = directory / filename
 
     with path.open("wb") as buffer:
-        buffer.write(file.file.read())
+        buffer.write(content)
 
     relative = path.relative_to(UPLOAD_DIR).as_posix()
     return f"/uploads/{relative}"
@@ -540,7 +545,7 @@ def update_vehicle(
     vehicle.has_open_issue = has_open_issue
     if is_retired:
         vehicle.status = "retired"
-    elif vehicle.status == "retired":
+    else:
         has_active_loan = any(loan.returned_at is None for loan in vehicle.loans)
         vehicle.status = "assigned" if has_active_loan else "available"
     if reference_image_path:
