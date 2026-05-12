@@ -10,7 +10,10 @@
   </div>
   <div class="flex items-center gap-3">
     <a href="/vehicles/{{ vehicle.id }}/edit" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Editar vehiculo</a>
-    <span class="status-pill status-{{ 'assigned' if active_loan else vehicle.status }}">{{ 'assigned' if active_loan else vehicle.status }}</span>
+    {% set display_status = "assigned" if active_loan else vehicle.status %}
+    <span class="status-pill status-{{ display_status }}">
+      {% if display_status == "available" %}Disponible{% elif display_status == "assigned" %}Asignado{% elif display_status == "retired" %}Retirado{% else %}{{ display_status }}{% endif %}
+    </span>
   </div>
 </div>
 

@@ -8,7 +8,10 @@
     <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ vehicle.brand }} {{ vehicle.model }}</h1>
     <p class="mt-1 text-sm text-zinc-600">{{ vehicle.plate }}{% if vehicle.year %} / {{ vehicle.year }}{% endif %}{% if vehicle.color %} / {{ vehicle.color }}{% endif %}</p>
   </div>
-  <span class="status-pill status-{{ 'assigned' if active_loan else vehicle.status }}">{{ 'assigned' if active_loan else vehicle.status }}</span>
+  {% set display_status = "assigned" if active_loan else vehicle.status %}
+  <span class="status-pill status-{{ display_status }}">
+    {% if display_status == "available" %}Disponible{% elif display_status == "assigned" %}Asignado{% elif display_status == "retired" %}Retirado{% else %}{{ display_status }}{% endif %}
+  </span>
 </div>
 
 {% if vehicle.status == "retired" %}
@@ -45,7 +48,7 @@
           <div><dt class="text-zinc-500">Vehiculo</dt><dd class="font-medium">{{ vehicle.brand }} {{ vehicle.model }}</dd></div>
           <div><dt class="text-zinc-500">Placa</dt><dd class="font-medium">{{ vehicle.plate }}</dd></div>
           <div><dt class="text-zinc-500">Color</dt><dd>{{ vehicle.color or "-" }}</dd></div>
-          <div><dt class="text-zinc-500">Estado</dt><dd>{{ vehicle.status }}</dd></div>
+          <div><dt class="text-zinc-500">Estado</dt><dd>{% if display_status == "available" %}Disponible{% elif display_status == "assigned" %}Asignado{% elif display_status == "retired" %}Retirado{% else %}{{ display_status }}{% endif %}</dd></div>
         </dl>
       </div>
     </section>

@@ -31,6 +31,7 @@
       {% set active_loan = row.active_loan %}
       {% set last_issue_loan = row.last_issue_loan %}
       {% set agreement_asset = row.agreement_asset %}
+      {% set display_status = "assigned" if active_loan else vehicle.status %}
       <tr>
         <td class="px-4 py-3">
           {% if vehicle.reference_image_path %}
@@ -48,7 +49,9 @@
         <td class="px-4 py-3">{{ vehicle.plate }}</td>
         <td class="px-4 py-3">{{ vehicle.color or "-" }}</td>
         <td class="px-4 py-3">
-          <span class="status-pill status-{{ vehicle.status }}">{{ vehicle.status }}</span>
+          <span class="status-pill status-{{ display_status }}">
+            {% if display_status == "available" %}Disponible{% elif display_status == "assigned" %}Asignado{% elif display_status == "retired" %}Retirado{% else %}{{ display_status }}{% endif %}
+          </span>
         </td>
         <td class="px-4 py-3">
           {% if vehicle.has_open_issue and last_issue_loan %}

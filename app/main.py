@@ -398,6 +398,27 @@ def list_loans(
     )
 
 
+@app.get("/loans/{loan_id}")
+def loan_detail(loan_id: int, request: Request, db: Session = Depends(get_db)):
+    loan = db.scalar(
+        select(Loan)
+        .options(selectinload(Loan.vehicle), selectinload(Loan.assets))
+        .where(Loan.id == loan_id)
+    )
+    if loan is None:
+        return RedirectResponse(url="/loans", status_code=303)
+
+    row = enrich_loans([loan])[0]
+    row["agreement_asset"] = next(
+        (asset for asset in loan.assets if asset.category == "agreement"),
+        None,
+    )
+    return templates.TemplateResponse(
+        "loans/detail.html",
+        {"request": request, "row": row, "loan_categories": LOAN_CATEGORIES},
+    )
+
+
 @app.get("/operator/vehicles")
 def operator_vehicles(request: Request, db: Session = Depends(get_db)):
     vehicles = db.scalars(
