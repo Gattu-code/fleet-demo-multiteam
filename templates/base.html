@@ -5,7 +5,111 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Fleet Demo{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}?v=20260512-2">
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}?v=20260512-3">
+    <style>
+      .field {
+        display: grid;
+        gap: 0.4rem;
+        color: rgb(24 24 27);
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .field span {
+        color: rgb(24 24 27);
+        font-size: 14px;
+        line-height: 1.25rem;
+      }
+
+      label.field input:not([type="checkbox"]):not([type="file"]),
+      label.field select,
+      label.field textarea,
+      .field input:not([type="checkbox"]):not([type="file"]),
+      .field select,
+      .field textarea {
+        appearance: auto;
+        box-sizing: border-box !important;
+        display: block !important;
+        width: 100% !important;
+        min-height: 42px !important;
+        border: 1px solid rgb(212 212 216) !important;
+        border-radius: 6px !important;
+        background: white !important;
+        padding: 9px 11px !important;
+        color: rgb(24 24 27) !important;
+        font-size: 14px !important;
+        font-weight: 400;
+        line-height: 1.25rem;
+        outline: none !important;
+        transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+      }
+
+      .field textarea,
+      label.field textarea {
+        min-height: 6rem !important;
+        resize: vertical;
+      }
+
+      .field input::placeholder,
+      .field textarea::placeholder {
+        color: rgb(113 113 122);
+        opacity: 0.75;
+      }
+
+      label.field input:not([type="checkbox"]):not([type="file"]):focus,
+      label.field select:focus,
+      label.field textarea:focus,
+      .field input:not([type="checkbox"]):not([type="file"]):focus,
+      .field select:focus,
+      .field textarea:focus {
+        border-color: rgb(24 24 27) !important;
+        box-shadow: 0 0 0 3px rgb(24 24 27 / 0.08) !important;
+      }
+
+      label.field input[type="file"],
+      .field input[type="file"] {
+        box-sizing: border-box !important;
+        display: block !important;
+        width: 100% !important;
+        border: 1px solid rgb(212 212 216) !important;
+        border-radius: 6px !important;
+        background: white !important;
+        color: rgb(24 24 27) !important;
+        cursor: pointer;
+        font-size: 14px !important;
+        font-weight: 400;
+        line-height: 1.25rem;
+        padding: 8px !important;
+      }
+
+      .field input[type="file"]::file-selector-button {
+        margin-right: 10px;
+        border: 1px solid rgb(212 212 216);
+        border-radius: 5px;
+        background: rgb(250 250 250);
+        color: rgb(24 24 27);
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        padding: 6px 10px;
+      }
+
+      label.field input[type="checkbox"],
+      .field input[type="checkbox"],
+      input[type="checkbox"].h-4 {
+        appearance: auto;
+        width: 16px !important;
+        height: 16px !important;
+        min-width: 16px !important;
+        min-height: 16px !important;
+        border: 1px solid rgb(161 161 170) !important;
+        border-radius: 4px !important;
+        background: white !important;
+        accent-color: rgb(24 24 27);
+        cursor: pointer;
+        padding: 0 !important;
+      }
+    </style>
   </head>
   <body class="min-h-screen bg-zinc-50 text-zinc-950">
     <header class="border-b border-zinc-200 bg-white">
