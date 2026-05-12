@@ -63,7 +63,7 @@ def ensure_schema():
 
 ensure_schema()
 
-app = FastAPI(title="Fleet Demo")
+app = FastAPI(title="Gestión de flotas (Marketing) :: Demo")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.mount("/uploads", StaticFiles(directory=BASE_DIR / "uploads"), name="uploads")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
