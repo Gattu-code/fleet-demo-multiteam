@@ -1,0 +1,32 @@
+services:
+  app:
+    build:
+      context: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: sqlite:////app/data/fleet.db
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - fleet_data:/app/data
+      - fleet_uploads:/app/uploads
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  fleet_data:
+  fleet_uploads:
+  caddy_data:
+  caddy_config:

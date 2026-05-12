@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Vehiculos | Fleet Demo{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex items-end justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight">Vehiculos</h1>
+    <p class="mt-1 text-sm text-zinc-600">Inventario, asignacion actual y estado de comodatos.</p>
+  </div>
+</div>
+
+{% if vehicle_rows %}
+<div class="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
+  <table class="w-full min-w-[900px] text-left text-sm">
+    <thead class="border-b border-zinc-200 bg-zinc-100 text-xs uppercase text-zinc-600">
+      <tr>
+        <th class="px-4 py-3">Imagen</th>
+        <th class="px-4 py-3">Vehiculo</th>
+        <th class="px-4 py-3">Placa</th>
+        <th class="px-4 py-3">Color</th>
+        <th class="px-4 py-3">Estado</th>
+        <th class="px-4 py-3">Novedad</th>
+        <th class="px-4 py-3">Asignado a</th>
+        <th class="px-4 py-3">Comodato</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-zinc-200">
+      {% for row in vehicle_rows %}
+      {% set vehicle = row.vehicle %}
+      {% set active_loan = row.active_loan %}
+      {% set last_issue_loan = row.last_issue_loan %}
+      {% set agreement_asset = row.agreement_asset %}
+      <tr>
+        <td class="px-4 py-3">
+          {% if vehicle.reference_image_path %}
+          <a href="/vehicles/{{ vehicle.id }}/edit" class="block h-14 w-20 overflow-hidden rounded-md border border-zinc-200 bg-zinc-100">
+            <img src="{{ vehicle.reference_image_path }}" alt="{{ vehicle.brand }} {{ vehicle.model }}" class="h-full w-full object-cover">
+          </a>
+          {% else %}
+          <a href="/vehicles/{{ vehicle.id }}/edit" class="flex h-14 w-20 items-center justify-center rounded-md border border-dashed border-zinc-300 text-xs text-zinc-400 hover:border-zinc-500 hover:text-zinc-700">Sin foto</a>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 font-medium">
+          <a href="/vehicles/{{ vehicle.id }}/edit" class="underline decoration-transparent underline-offset-4 hover:decoration-zinc-900">{{ vehicle.brand }} {{ vehicle.model }}</a>
+          {% if vehicle.year %}<span class="font-normal text-zinc-500">{{ vehicle.year }}</span>{% endif %}
+        </td>
+        <td class="px-4 py-3">{{ vehicle.plate }}</td>
+        <td class="px-4 py-3">{{ vehicle.color or "-" }}</td>
+        <td class="px-4 py-3">
+          <span class="status-pill status-{{ vehicle.status }}">{{ vehicle.status }}</span>
+        </td>
+        <td class="px-4 py-3">
+          {% if vehicle.has_open_issue and last_issue_loan %}
+          <a href="/vehicles/{{ vehicle.id }}#loan-{{ last_issue_loan.id }}" class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-100 text-rose-700 ring-1 ring-rose-200" title="Vehiculo con novedad pendiente">
+            !
+          </a>
+          {% elif vehicle.has_open_issue %}
+          <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-100 text-rose-700 ring-1 ring-rose-200" title="Vehiculo con novedad pendiente">!</span>
+          {% else %}
+          <span class="text-zinc-400">-</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          {% if active_loan %}
+          <div class="font-medium">{{ active_loan.borrower_name }}</div>
+          <div class="text-xs text-zinc-500">{{ active_loan.phone or active_loan.email or active_loan.instagram or "" }}</div>
+          {% else %}
+          <span class="text-zinc-500">Disponible</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          {% if active_loan %}
+            {% if active_loan.agreement_signed %}
+              {% if agreement_asset %}
+              <a class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-200" href="{{ agreement_asset.file_path }}" target="_blank">Firmado</a>
+              {% else %}
+              <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">Firmado</span>
+              {% endif %}
+            {% else %}
+            <span class="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">Pendiente</span>
+            {% endif %}
+          {% else %}
+          <span class="text-zinc-500">-</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-right">
+          <a class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 hover:bg-zinc-100" href="/vehicles/{{ vehicle.id }}" title="Ver vehiculo" aria-label="Ver vehiculo">
+            <svg viewBox="0 0 24 24" class="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center">
+  <h2 class="text-lg font-medium">Aun no hay vehiculos</h2>
+  <p class="mt-2 text-sm text-zinc-600">Crea el primer registro para iniciar el demo.</p>
+  <a href="/vehicles/new" class="mt-5 inline-flex rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Crear vehiculo</a>
+</div>
+{% endif %}
+{% endblock %}

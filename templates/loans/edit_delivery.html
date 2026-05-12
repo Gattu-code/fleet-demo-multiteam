@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Editar entrega | Fleet Demo{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+  <a href="/vehicles/{{ loan.vehicle_id }}" class="text-sm text-zinc-600 hover:text-zinc-950">Volver</a>
+  <h1 class="mt-2 text-2xl font-semibold tracking-tight">Editar entrega</h1>
+  <p class="mt-1 text-sm text-zinc-600">{{ loan.vehicle.brand }} {{ loan.vehicle.model }} / {{ loan.vehicle.plate }}</p>
+
+  <form action="/loans/{{ loan.id }}/edit-delivery" method="post" enctype="multipart/form-data" class="mt-6 space-y-5 rounded-lg border border-zinc-200 bg-white p-6">
+    <div class="grid gap-4 sm:grid-cols-2">
+      <label class="field sm:col-span-2"><span>Nombre</span><input name="borrower_name" value="{{ loan.borrower_name }}" required></label>
+      <label class="field"><span>Telefono</span><input name="phone" value="{{ loan.phone or '' }}"></label>
+      <label class="field"><span>Email</span><input name="email" type="email" value="{{ loan.email or '' }}"></label>
+      <label class="field"><span>Instagram</span><input name="instagram" value="{{ loan.instagram or '' }}"></label>
+      <label class="field"><span>Operador entrega</span><input name="delivery_operator" value="{{ loan.delivery_operator or '' }}"></label>
+      <label class="field"><span>Kilometraje entrega</span><input name="delivery_mileage" type="number" min="0" value="{{ loan.delivery_mileage }}" required></label>
+      <label class="field"><span>Combustible</span><input name="fuel_level" value="{{ loan.fuel_level or '' }}"></label>
+      <label class="field sm:col-span-2">
+        <span>Agregar fotos o video del estado de entrega</span>
+        <input name="delivery_files" type="file" accept="image/*,video/*" multiple>
+      </label>
+      <label class="field sm:col-span-2"><span>Notas</span><textarea name="notes" rows="4">{{ loan.notes or '' }}</textarea></label>
+    </div>
+    <div class="rounded-md border border-zinc-200 bg-zinc-50 p-4">
+      <label class="flex items-center gap-2 text-sm font-medium">
+        <input id="edit_agreement_signed" name="agreement_signed" type="checkbox" value="true" class="h-4 w-4 rounded border-zinc-300" {% if loan.agreement_signed %}checked{% endif %}>
+        Comodato firmado
+      </label>
+      <div id="edit_agreement_file_field" class="field mt-4 hidden">
+        <span>Agregar documento de comodato</span>
+        <input id="edit_agreement_file" name="agreement_file" type="file" accept="image/*,application/pdf">
+      </div>
+    </div>
+
+    {% if loan.assets %}
+    <div class="rounded-md bg-zinc-100 p-4">
+      <h2 class="text-sm font-semibold">Archivos actuales</h2>
+      <div class="mt-3 grid gap-2 sm:grid-cols-2">
+        {% for asset in loan.assets %}
+        <a class="rounded-md border border-zinc-200 bg-white p-3 text-sm hover:bg-zinc-50" href="{{ asset.file_path }}" target="_blank">
+          <span class="block font-medium">{{ asset.category }}</span>
+          <span class="block truncate text-zinc-600">{{ asset.original_filename or asset.file_path }}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="flex gap-3">
+      <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Guardar cambios</button>
+      <a href="/vehicles/{{ loan.vehicle_id }}" class="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100">Cancelar</a>
+    </div>
+  </form>
+</div>
+<script>
+  const editAgreementCheck = document.getElementById("edit_agreement_signed");
+  const editAgreementField = document.getElementById("edit_agreement_file_field");
+  const editAgreementInput = document.getElementById("edit_agreement_file");
+
+  if (editAgreementCheck && editAgreementField && editAgreementInput) {
+    const syncEditAgreementFile = () => {
+      editAgreementField.classList.toggle("hidden", !editAgreementCheck.checked);
+      editAgreementInput.required = editAgreementCheck.checked;
+      if (!editAgreementCheck.checked) {
+        editAgreementInput.value = "";
+      }
+    };
+    editAgreementCheck.addEventListener("change", syncEditAgreementFile);
+    syncEditAgreementFile();
+  }
+</script>
+{% endblock %}

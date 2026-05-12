@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}Operacion | Fleet Demo{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-start justify-between gap-4">
+  <div>
+    <a href="/operator/vehicles" class="text-sm text-zinc-600 hover:text-zinc-950">Volver</a>
+    <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ vehicle.brand }} {{ vehicle.model }}</h1>
+    <p class="mt-1 text-sm text-zinc-600">{{ vehicle.plate }}{% if vehicle.year %} / {{ vehicle.year }}{% endif %}{% if vehicle.color %} / {{ vehicle.color }}{% endif %}</p>
+  </div>
+  <span class="status-pill status-{{ vehicle.status }}">{{ vehicle.status }}</span>
+</div>
+
+{% if vehicle.status == "retired" %}
+<section class="rounded-lg border border-zinc-200 bg-white p-6">
+  <h2 class="text-lg font-semibold">Vehiculo retirado</h2>
+  <p class="mt-2 text-sm text-zinc-600">Este vehiculo ya no esta disponible para entregas o recepciones operativas.</p>
+</section>
+{% else %}
+
+{% if vehicle.has_open_issue %}
+<section class="mb-6 rounded-lg border border-rose-200 bg-rose-50 p-4">
+  <h2 class="font-semibold text-rose-800">Vehiculo con novedad pendiente</h2>
+  <p class="mt-1 text-sm text-rose-700">Revisa internamente antes de realizar una nueva entrega.</p>
+</section>
+{% endif %}
+
+<section class="rounded-lg border border-zinc-200 bg-white p-6">
+  {% if vehicle.status == "available" %}
+  <h2 class="text-lg font-semibold">Registrar entrega</h2>
+  <form action="/vehicles/{{ vehicle.id }}/deliver" method="post" enctype="multipart/form-data" class="mt-6 space-y-6">
+    <input type="hidden" name="redirect_to" value="operator">
+
+    <section>
+      <h3 class="text-sm font-semibold uppercase text-zinc-500">1. Vehiculo</h3>
+      <div class="mt-3 grid gap-5 lg:grid-cols-[240px_1fr]">
+        {% if vehicle.reference_image_path %}
+        <a href="{{ vehicle.reference_image_path }}" target="_blank" class="block h-40 overflow-hidden rounded-md border border-zinc-200 bg-zinc-100">
+          <img src="{{ vehicle.reference_image_path }}" alt="{{ vehicle.brand }} {{ vehicle.model }}" class="h-full w-full object-cover">
+        </a>
+        {% else %}
+        <div class="flex h-40 items-center justify-center rounded-md border border-dashed border-zinc-300 text-sm text-zinc-500">Sin imagen</div>
+        {% endif %}
+        <dl class="grid gap-3 text-sm sm:grid-cols-2">
+          <div><dt class="text-zinc-500">Vehiculo</dt><dd class="font-medium">{{ vehicle.brand }} {{ vehicle.model }}</dd></div>
+          <div><dt class="text-zinc-500">Placa</dt><dd class="font-medium">{{ vehicle.plate }}</dd></div>
+          <div><dt class="text-zinc-500">Color</dt><dd>{{ vehicle.color or "-" }}</dd></div>
+          <div><dt class="text-zinc-500">Estado</dt><dd>{{ vehicle.status }}</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="border-t border-zinc-200 pt-6">
+      <h3 class="text-sm font-semibold uppercase text-zinc-500">2. Usuario / receptor</h3>
+      <div class="mt-3 grid gap-4 sm:grid-cols-2">
+        <label class="field sm:col-span-2"><span>Nombre receptor</span><input name="borrower_name" required></label>
+        <label class="field"><span>Telefono</span><input name="phone"></label>
+        <label class="field"><span>Email</span><input name="email" type="email"></label>
+        <label class="field"><span>Instagram</span><input name="instagram" placeholder="@usuario"></label>
+      </div>
+    </section>
+
+    <section class="border-t border-zinc-200 pt-6">
+      <h3 class="text-sm font-semibold uppercase text-zinc-500">3. Operador y entrega</h3>
+      <div class="mt-3 grid gap-4 sm:grid-cols-2">
+        <label class="field"><span>Operador entrega</span><input name="delivery_operator"></label>
+        <label class="field"><span>Kilometraje entrega</span><input name="delivery_mileage" type="number" min="0" required></label>
+        <label class="field"><span>Combustible</span><input name="fuel_level" placeholder="Full, 3/4, 1/2"></label>
+        <label class="field sm:col-span-2">
+          <span>Fotos o video del estado de entrega</span>
+          <input name="delivery_files" type="file" accept="image/*,video/*" multiple>
+        </label>
+        <label class="field sm:col-span-2"><span>Notas</span><textarea name="notes" rows="3"></textarea></label>
+      </div>
+      <div class="mt-4 rounded-md border border-zinc-200 bg-zinc-50 p-4">
+        <label class="flex items-center gap-2 text-sm font-medium">
+          <input id="operator_agreement_signed" name="agreement_signed" type="checkbox" value="true" class="h-4 w-4 rounded border-zinc-300">
+          Comodato firmado
+        </label>
+        <div id="operator_agreement_file_field" class="field mt-4 hidden">
+          <span>Documento de comodato</span>
+          <input id="operator_agreement_file" name="agreement_file" type="file" accept="image/*,application/pdf">
+        </div>
+      </div>
+    </section>
+
+    <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Registrar entrega</button>
+  </form>
+  {% elif active_loan %}
+  {% set agreement_asset = active_loan.assets | selectattr("category", "equalto", "agreement") | list | first %}
+  {% set delivery_assets = active_loan.assets | selectattr("category", "equalto", "delivery") | list %}
+  <h2 class="text-lg font-semibold">Registrar recepcion</h2>
+
+  <form action="/loans/{{ active_loan.id }}/return" method="post" enctype="multipart/form-data" class="mt-6 space-y-6">
+    <input type="hidden" name="redirect_to" value="operator">
+
+    <section>
+      <h3 class="text-sm font-semibold uppercase text-zinc-500">1. Vehiculo</h3>
+      <div class="mt-3 grid gap-5 lg:grid-cols-[240px_1fr]">
+        {% if vehicle.reference_image_path %}
+        <a href="{{ vehicle.reference_image_path }}" target="_blank" class="block h-40 overflow-hidden rounded-md border border-zinc-200 bg-zinc-100">
+          <img src="{{ vehicle.reference_image_path }}" alt="{{ vehicle.brand }} {{ vehicle.model }}" class="h-full w-full object-cover">
+        </a>
+        {% else %}
+        <div class="flex h-40 items-center justify-center rounded-md border border-dashed border-zinc-300 text-sm text-zinc-500">Sin imagen</div>
+        {% endif %}
+        <dl class="grid gap-3 text-sm sm:grid-cols-2">
+          <div><dt class="text-zinc-500">Vehiculo</dt><dd class="font-medium">{{ vehicle.brand }} {{ vehicle.model }}</dd></div>
+          <div><dt class="text-zinc-500">Placa</dt><dd class="font-medium">{{ vehicle.plate }}</dd></div>
+          <div><dt class="text-zinc-500">Color</dt><dd>{{ vehicle.color or "-" }}</dd></div>
+          <div><dt class="text-zinc-500">Km entrega</dt><dd>{{ active_loan.delivery_mileage }}</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="border-t border-zinc-200 pt-6">
+      <h3 class="text-sm font-semibold uppercase text-zinc-500">2. Usuario actual</h3>
+      <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+        <div><dt class="text-zinc-500">Asignado a</dt><dd class="font-medium">{{ active_loan.borrower_name }}</dd></div>
+        <div><dt class="text-zinc-500">Telefono</dt><dd>{{ active_loan.phone or "-" }}</dd></div>
+        <div><dt class="text-zinc-500">Email</dt><dd>{{ active_loan.email or "-" }}</dd></div>
+        <div><dt class="text-zinc-500">Instagram</dt><dd>{{ active_loan.instagram or "-" }}</dd></div>
+      </dl>
+    </section>
+
+    <section class="border-t border-zinc-200 pt-6">
+      <h3 class="text-sm font-semibold uppercase text-zinc-500">3. Evidencia de entrega</h3>
+      <div class="mt-3 grid gap-5 lg:grid-cols-2">
+        <div class="rounded-md border border-zinc-200 bg-zinc-50 p-4">
+          <h4 class="text-sm font-semibold">Comodato</h4>
+          <div class="mt-3">
+            {% if active_loan.agreement_signed and agreement_asset %}
+            <a href="{{ agreement_asset.file_path }}" target="_blank" class="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-200">Firmado y cargado</a>
+            {% elif active_loan.agreement_signed %}
+            <span class="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">Firmado sin archivo</span>
+            {% else %}
+            <span class="inline-flex rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">Pendiente</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="rounded-md border border-zinc-200 bg-zinc-50 p-4">
+          <h4 class="text-sm font-semibold">Fotos o video de entrega</h4>
+          {% if delivery_assets %}
+          <div class="mt-3 grid gap-2">
+            {% for asset in delivery_assets %}
+            <a href="{{ asset.file_path }}" target="_blank" class="rounded-md border border-zinc-200 bg-white p-3 text-sm hover:bg-zinc-50">
+              <span class="block font-medium">Archivo de entrega</span>
+              <span class="block truncate text-zinc-600">{{ asset.original_filename or asset.file_path }}</span>
+            </a>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="mt-3 text-sm text-zinc-600">No hay archivos de entrega cargados.</p>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    <section class="border-t border-zinc-200 pt-6">
+      <h3 class="text-sm font-semibold uppercase text-zinc-500">4. Operador y recepcion</h3>
+      <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+        <div><dt class="text-zinc-500">Operador entrega</dt><dd>{{ active_loan.delivery_operator or "-" }}</dd></div>
+      </dl>
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <label class="field"><span>Kilometraje recepcion</span><input name="return_mileage" type="number" min="0" required></label>
+        <label class="field"><span>Operador recepcion</span><input name="return_operator"></label>
+        <label class="field"><span>Combustible</span><input name="fuel_level" placeholder="Full, 3/4, 1/2"></label>
+        <label class="field sm:col-span-2">
+          <span>Fotos o video de recepcion</span>
+          <input name="return_files" type="file" accept="image/*,video/*" multiple>
+        </label>
+        <label class="flex items-center gap-2 text-sm font-medium sm:col-span-2">
+          <input id="operator_return_has_issues" name="return_has_issues" type="checkbox" value="true" class="h-4 w-4 rounded border-zinc-300">
+          Devuelto con novedades
+        </label>
+        <label id="operator_return_issue_files_field" class="field hidden sm:col-span-2">
+          <span>Fotos de novedades</span>
+          <input id="operator_return_issue_files" name="return_issue_files" type="file" accept="image/*" multiple>
+        </label>
+        <label class="field sm:col-span-2"><span>Notas recepcion</span><textarea name="notes" rows="3"></textarea></label>
+      </div>
+    </section>
+
+    <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Registrar recepcion</button>
+  </form>
+  {% endif %}
+</section>
+
+<script>
+  const operatorAgreementCheck = document.getElementById("operator_agreement_signed");
+  const operatorAgreementField = document.getElementById("operator_agreement_file_field");
+  const operatorAgreementInput = document.getElementById("operator_agreement_file");
+
+  if (operatorAgreementCheck && operatorAgreementField && operatorAgreementInput) {
+    const syncOperatorAgreement = () => {
+      operatorAgreementField.classList.toggle("hidden", !operatorAgreementCheck.checked);
+      operatorAgreementInput.required = operatorAgreementCheck.checked;
+      if (!operatorAgreementCheck.checked) {
+        operatorAgreementInput.value = "";
+      }
+    };
+    operatorAgreementCheck.addEventListener("change", syncOperatorAgreement);
+    syncOperatorAgreement();
+  }
+
+  const operatorIssuesCheck = document.getElementById("operator_return_has_issues");
+  const operatorIssueField = document.getElementById("operator_return_issue_files_field");
+  const operatorIssueInput = document.getElementById("operator_return_issue_files");
+
+  if (operatorIssuesCheck && operatorIssueField && operatorIssueInput) {
+    const syncOperatorIssues = () => {
+      operatorIssueField.classList.toggle("hidden", !operatorIssuesCheck.checked);
+      operatorIssueInput.required = operatorIssuesCheck.checked;
+    };
+    operatorIssuesCheck.addEventListener("change", syncOperatorIssues);
+    syncOperatorIssues();
+  }
+</script>
+{% endif %}
+{% endblock %}

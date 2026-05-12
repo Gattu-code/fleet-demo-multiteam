@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Nuevo vehiculo | Fleet Demo{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl">
+  <h1 class="text-2xl font-semibold tracking-tight">Nuevo vehiculo</h1>
+  <form action="/vehicles" method="post" enctype="multipart/form-data" class="mt-6 space-y-5 rounded-lg border border-zinc-200 bg-white p-6">
+    <div class="grid gap-5 sm:grid-cols-2">
+      <label class="field">
+        <span>Marca</span>
+        <input name="brand" required>
+      </label>
+      <label class="field">
+        <span>Modelo</span>
+        <input name="model" required>
+      </label>
+      <label class="field">
+        <span>Anio</span>
+        <input name="year" type="number" min="1950" max="2100">
+      </label>
+      <label class="field">
+        <span>Placa</span>
+        <input name="plate" required>
+      </label>
+      <label class="field sm:col-span-2">
+        <span>Color</span>
+        <input name="color">
+      </label>
+      <label class="field sm:col-span-2">
+        <span>Imagen de referencia</span>
+        <input name="reference_image" type="file" accept="image/*">
+      </label>
+    </div>
+    <div class="flex gap-3">
+      <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Guardar</button>
+      <a href="/vehicles" class="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

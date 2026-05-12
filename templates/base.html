@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Fleet Demo{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}">
+  </head>
+  <body class="min-h-screen bg-zinc-50 text-zinc-950">
+    <header class="border-b border-zinc-200 bg-white">
+      <div class="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
+        <a href="/vehicles" class="text-lg font-semibold tracking-tight">Fleet Demo</a>
+        <div class="flex items-center gap-3">
+          <a href="/dashboard" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Dashboard</a>
+          <a href="/loans" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Prestamos</a>
+          <a href="/operator/vehicles" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Operador</a>
+          <a href="/vehicles/new" class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Nuevo vehiculo</a>
+        </div>
+      </div>
+    </header>
+    <main class="mx-auto max-w-6xl px-5 py-8">
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

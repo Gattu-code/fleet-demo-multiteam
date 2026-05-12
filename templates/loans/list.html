@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Prestamos | Fleet Demo{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight">Prestamos</h1>
+    <p class="mt-1 text-sm text-zinc-600">Vista de marketing para analizar uso, categorias y resultados operativos.</p>
+  </div>
+</div>
+
+<form method="get" action="/loans" class="mb-5 grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 sm:grid-cols-[1fr_1fr_1fr_auto]">
+  <label class="field">
+    <span>Estado</span>
+    <select name="status">
+      <option value="" {% if not selected_status %}selected{% endif %}>Todos</option>
+      <option value="active" {% if selected_status == "active" %}selected{% endif %}>Activos</option>
+      <option value="returned" {% if selected_status == "returned" %}selected{% endif %}>Devueltos</option>
+      <option value="issues" {% if selected_status == "issues" %}selected{% endif %}>Con novedades</option>
+    </select>
+  </label>
+  <label class="field">
+    <span>Categoria</span>
+    <select name="category">
+      <option value="" {% if not selected_category %}selected{% endif %}>Todas</option>
+      {% for category in loan_categories %}
+      <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="field">
+    <span>Comodato</span>
+    <select name="agreement">
+      <option value="" {% if not selected_agreement %}selected{% endif %}>Todos</option>
+      <option value="missing" {% if selected_agreement == "missing" %}selected{% endif %}>Con faltante</option>
+    </select>
+  </label>
+  <div class="flex items-end gap-2">
+    <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Filtrar</button>
+    <a href="/loans" class="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100">Limpiar</a>
+  </div>
+</form>
+
+<div class="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
+  <table class="w-full min-w-[1100px] text-left text-sm">
+    <thead class="border-b border-zinc-200 bg-zinc-100 text-xs uppercase text-zinc-600">
+      <tr>
+        <th class="px-4 py-3">Prestamo</th>
+        <th class="px-4 py-3">Vehiculo</th>
+        <th class="px-4 py-3">Categoria</th>
+        <th class="px-4 py-3">Estado</th>
+        <th class="px-4 py-3">Fechas</th>
+        <th class="px-4 py-3">Uso</th>
+        <th class="px-4 py-3">Novedad</th>
+        <th class="px-4 py-3">Comodato</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-zinc-200">
+      {% for row in loan_rows %}
+      {% set loan = row.loan %}
+      {% set vehicle = loan.vehicle %}
+      {% set agreement_asset = row.agreement_asset %}
+      <tr>
+        <td class="px-4 py-3">
+          <div class="font-medium">{{ loan.borrower_name }}</div>
+          <div class="text-xs text-zinc-500">{{ loan.phone or loan.email or loan.instagram or "-" }}</div>
+        </td>
+        <td class="px-4 py-3">
+          <div class="font-medium">{{ vehicle.brand }} {{ vehicle.model }}</div>
+          <div class="text-xs text-zinc-500">{{ vehicle.plate }}</div>
+        </td>
+        <td class="px-4 py-3">
+          {% if loan.loan_category %}
+          <span class="rounded-full bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-700">{{ loan.loan_category }}</span>
+          {% else %}
+          <span class="text-zinc-400">Sin categoria</span>
+          {% endif %}
+          {% if saved_loan_id == loan.id %}
+          <span class="ml-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700" title="Guardado">✓</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          <span class="rounded-full bg-zinc-100 px-2 py-1 text-xs font-medium">{{ "Devuelto" if loan.returned_at else "Activo" }}</span>
+        </td>
+        <td class="px-4 py-3">
+          <div>{{ loan.delivered_at.strftime("%Y-%m-%d") }}</div>
+          <div class="text-xs text-zinc-500">{{ loan.returned_at.strftime("%Y-%m-%d") if loan.returned_at else "Sin devolucion" }}</div>
+        </td>
+        <td class="px-4 py-3">
+          <div>{{ row.days_on_loan }} dias</div>
+          <div class="text-xs text-zinc-500">{{ row.mileage_used if row.mileage_used is not none else "-" }} km</div>
+        </td>
+        <td class="px-4 py-3">
+          {% if loan.return_has_issues %}
+          <span class="rounded-full bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700">Con novedad</span>
+          {% else %}
+          <span class="text-zinc-400">-</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          {% if loan.agreement_signed and agreement_asset %}
+          <a class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-200" href="{{ agreement_asset.file_path }}" target="_blank">Firmado</a>
+          {% elif loan.agreement_signed %}
+          <span class="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">Sin archivo</span>
+          {% else %}
+          <span class="rounded-full bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700">Pendiente</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-right">
+          <div class="flex justify-end gap-2">
+            <button type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 hover:bg-zinc-100" data-category-toggle="loan-category-{{ loan.id }}" title="Editar categoria" aria-label="Editar categoria">
+              <svg viewBox="0 0 24 24" class="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+              </svg>
+            </button>
+            <a href="/vehicles/{{ vehicle.id }}#loan-{{ loan.id }}" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 hover:bg-zinc-100" title="Ver detalle" aria-label="Ver detalle">
+              <svg viewBox="0 0 24 24" class="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </a>
+          </div>
+          <form id="loan-category-{{ loan.id }}" action="/loans/{{ loan.id }}/category" method="post" class="mt-2 hidden justify-end gap-2">
+            <input type="hidden" name="filter_status" value="{{ selected_status }}">
+            <input type="hidden" name="filter_category" value="{{ selected_category }}">
+            <input type="hidden" name="filter_agreement" value="{{ selected_agreement }}">
+            <select name="loan_category" class="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm">
+              <option value="">Sin categoria</option>
+              {% for category in loan_categories %}
+              <option value="{{ category }}" {% if loan.loan_category == category %}selected{% endif %}>{{ category }}</option>
+              {% endfor %}
+            </select>
+            <button class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100">Guardar</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="9" class="px-4 py-8 text-center text-zinc-600">No hay prestamos para los filtros seleccionados.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<script>
+  document.querySelectorAll("[data-category-toggle]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const form = document.getElementById(button.dataset.categoryToggle);
+      if (form) {
+        form.classList.toggle("hidden");
+        form.classList.toggle("flex");
+      }
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+fleet_demo.db
+data/
+uploads/loan_photos/*
+!uploads/loan_photos/.gitkeep
+uploads/vehicle_refs/*
+!uploads/vehicle_refs/.gitkeep
+uploads/loan_assets/*
+!uploads/loan_assets/.gitkeep

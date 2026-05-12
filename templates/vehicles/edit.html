@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Editar vehiculo | Fleet Demo{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+  <a href="/vehicles/{{ vehicle.id }}" class="text-sm text-zinc-600 hover:text-zinc-950">Volver</a>
+  <h1 class="mt-2 text-2xl font-semibold tracking-tight">Editar vehiculo</h1>
+  <p class="mt-1 text-sm text-zinc-600">{{ vehicle.brand }} {{ vehicle.model }} / {{ vehicle.plate }}</p>
+
+  <form action="/vehicles/{{ vehicle.id }}/edit" method="post" enctype="multipart/form-data" class="mt-6 space-y-5 rounded-lg border border-zinc-200 bg-white p-6">
+    {% if vehicle.reference_image_path %}
+    <a href="{{ vehicle.reference_image_path }}" target="_blank" class="block overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100">
+      <img src="{{ vehicle.reference_image_path }}" alt="{{ vehicle.brand }} {{ vehicle.model }}" class="h-72 w-full object-cover">
+    </a>
+    {% else %}
+    <div class="flex h-48 items-center justify-center rounded-lg border border-dashed border-zinc-300 text-sm text-zinc-500">Sin imagen de referencia</div>
+    {% endif %}
+
+    <div class="grid gap-5 sm:grid-cols-2">
+      <label class="field">
+        <span>Marca</span>
+        <input name="brand" value="{{ vehicle.brand }}" required>
+      </label>
+      <label class="field">
+        <span>Modelo</span>
+        <input name="model" value="{{ vehicle.model }}" required>
+      </label>
+      <label class="field">
+        <span>Anio</span>
+        <input name="year" type="number" min="1950" max="2100" value="{{ vehicle.year or '' }}">
+      </label>
+      <label class="field">
+        <span>Placa</span>
+        <input name="plate" value="{{ vehicle.plate }}" required>
+      </label>
+      <label class="field sm:col-span-2">
+        <span>Color</span>
+        <input name="color" value="{{ vehicle.color or '' }}">
+      </label>
+      <label class="field sm:col-span-2">
+        <span>Cargar nueva imagen de referencia</span>
+        <input name="reference_image" type="file" accept="image/*">
+      </label>
+    </div>
+
+    <div class="rounded-md border border-zinc-200 bg-zinc-50 p-4">
+      <label class="flex items-center gap-2 text-sm font-medium">
+        <input name="has_open_issue" type="checkbox" value="true" class="h-4 w-4 rounded border-zinc-300" {% if vehicle.has_open_issue %}checked{% endif %}>
+        Vehiculo con novedad pendiente
+      </label>
+      <p class="mt-2 text-sm text-zinc-600">Esta marca es el estado actual del vehiculo. Cambiarla no modifica los prestamos historicos.</p>
+    </div>
+
+    <div class="rounded-md border border-amber-200 bg-amber-50 p-4">
+      <label class="flex items-center gap-2 text-sm font-medium text-amber-900">
+        <input name="is_retired" type="checkbox" value="true" class="h-4 w-4 rounded border-amber-300" {% if vehicle.status == "retired" %}checked{% endif %}>
+        Retirado de la flota
+      </label>
+      <p class="mt-2 text-sm text-amber-800">No elimina el vehiculo ni sus prestamos. Solo lo saca de la operacion y de la disponibilidad actual.</p>
+    </div>
+
+    <div class="flex gap-3">
+      <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Guardar cambios</button>
+      <a href="/vehicles/{{ vehicle.id }}" class="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
