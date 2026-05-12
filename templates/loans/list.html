@@ -10,6 +10,9 @@
 </div>
 
 <form method="get" action="/loans" class="mb-5 grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 sm:grid-cols-[1fr_1fr_1fr_auto]">
+  {% if selected_vehicle_id %}
+  <input type="hidden" name="vehicle_id" value="{{ selected_vehicle_id }}">
+  {% endif %}
   <label class="field">
     <span>Estado</span>
     <select name="status">
@@ -130,6 +133,9 @@
             <input type="hidden" name="filter_status" value="{{ selected_status }}">
             <input type="hidden" name="filter_category" value="{{ selected_category }}">
             <input type="hidden" name="filter_agreement" value="{{ selected_agreement }}">
+            {% if selected_vehicle_id %}
+            <input type="hidden" name="filter_vehicle_id" value="{{ selected_vehicle_id }}">
+            {% endif %}
             <select name="loan_category" class="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm">
               <option value="">Sin categoria</option>
               {% for category in loan_categories %}

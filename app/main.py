@@ -261,7 +261,10 @@ def dashboard(
         model = vehicle.model
         by_model[model] = by_model.get(model, 0) + 1
         key = f"{vehicle.brand} {vehicle.model} / {vehicle.plate}"
-        stats = top_vehicles.setdefault(key, {"count": 0, "days": 0, "km": 0})
+        stats = top_vehicles.setdefault(
+            key,
+            {"count": 0, "days": 0, "km": 0, "vehicle_id": vehicle.id},
+        )
         stats["count"] += 1
         stats["days"] += row["days_on_loan"]
         stats["km"] += row["mileage_used"] or 0
@@ -358,6 +361,7 @@ def list_loans(
     status: str | None = None,
     category: str | None = None,
     agreement: str | None = None,
+    vehicle_id: int | None = None,
     saved: int | None = None,
     db: Session = Depends(get_db),
 ):
@@ -376,6 +380,8 @@ def list_loans(
         if status == "issues" and not loan.return_has_issues:
             continue
         if category and loan.loan_category != category:
+            continue
+        if vehicle_id and loan.vehicle_id != vehicle_id:
             continue
         agreement_asset = next(
             (asset for asset in loan.assets if asset.category == "agreement"),
@@ -398,6 +404,7 @@ def list_loans(
             "selected_status": status or "",
             "selected_category": category or "",
             "selected_agreement": agreement or "",
+            "selected_vehicle_id": vehicle_id,
             "saved_loan_id": saved,
         },
     )
@@ -679,6 +686,7 @@ def update_loan_category(
     filter_status: str | None = Form(None),
     filter_category: str | None = Form(None),
     filter_agreement: str | None = Form(None),
+    filter_vehicle_id: int | None = Form(None),
     db: Session = Depends(get_db),
 ):
     loan = db.get(Loan, loan_id)
@@ -696,6 +704,8 @@ def update_loan_category(
         query["category"] = filter_category
     if filter_agreement:
         query["agreement"] = filter_agreement
+    if filter_vehicle_id:
+        query["vehicle_id"] = str(filter_vehicle_id)
     return RedirectResponse(url=f"/loans?{urlencode(query)}", status_code=303)
 
 

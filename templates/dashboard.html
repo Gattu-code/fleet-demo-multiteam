@@ -63,7 +63,7 @@
     <div class="mt-4 space-y-3">
       {% for label, stats in top_vehicles %}
       <div class="grid gap-2 text-sm sm:grid-cols-[1fr_auto_auto_auto]">
-        <span class="font-medium">{{ label }}</span>
+        <a href="/loans?vehicle_id={{ stats.vehicle_id }}" class="font-medium underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-900">{{ label }}</a>
         <span>{{ stats.count }} prestamos</span>
         <span>{{ stats.days }} dias</span>
         <span>{{ stats.km }} km</span>
