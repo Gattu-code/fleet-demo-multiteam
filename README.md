@@ -33,7 +33,7 @@ uploads/
   loan_photos/
 ```
 
-La base SQLite se crea automáticamente como `fleet_demo.db` al arrancar la app.
+La base SQLite local se crea automáticamente como `./data/fleet.db` al arrancar la app.
 
 ## Datos demo
 

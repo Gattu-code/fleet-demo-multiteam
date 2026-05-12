@@ -6,7 +6,7 @@ __pycache__
 .Python
 .git
 .gitignore
-fleet_demo.db
+*.db
 data
 uploads/*
 !uploads/.gitkeep

@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/fleet_demo.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/fleet.db")
 
 if DATABASE_URL.startswith("sqlite:///"):
     sqlite_path = DATABASE_URL.replace("sqlite:///", "", 1)
