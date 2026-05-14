@@ -30,7 +30,7 @@
     <select name="category" onchange="this.form.submit()">
       <option value="" {% if not request.query_params.get("category", selected_category) %}selected{% endif %}>Todas</option>
       {% for category in loan_categories %}
-      <option value="{{ category }}" {% if request.query_params.get("category", selected_category) == category %}selected{% endif %}>{{ category }}</option>
+      <option value="{{ category.name }}" {% if request.query_params.get("category", selected_category) == category.name %}selected{% endif %}>{{ category.name }}</option>
       {% endfor %}
     </select>
   </label>
@@ -153,7 +153,7 @@
             <select name="loan_category" class="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm">
               <option value="">Sin categoria</option>
               {% for category in loan_categories %}
-              <option value="{{ category }}" {% if loan.loan_category == category %}selected{% endif %}>{{ category }}</option>
+              <option value="{{ category.name }}" {% if loan.loan_category == category.name %}selected{% endif %}>{{ category.name }}</option>
               {% endfor %}
             </select>
             <button class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-zinc-100">Guardar</button>

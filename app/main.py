@@ -14,8 +14,12 @@ from sqlalchemy.orm import Session, selectinload
 
 from .auth import AuthenticationRequired, get_session_user, require_user, verify_password
 from .database import Base, SessionLocal, engine, get_db
-from .models import Loan, LoanAsset, Team, User, Vehicle, VehicleTransfer
-from .seed import ensure_default_users as seed_ensure_default_users, ensure_demo_teams
+from .models import Loan, LoanAsset, LoanCategory, Team, User, Vehicle, VehicleTransfer
+from .seed import (
+    ensure_default_users as seed_ensure_default_users,
+    ensure_demo_teams,
+    ensure_loan_categories as seed_ensure_loan_categories,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -102,6 +106,7 @@ ensure_default_team()
 def ensure_demo_users():
     db = SessionLocal()
     try:
+        seed_ensure_loan_categories(db)
         seed_ensure_default_users(db)
         ensure_demo_teams(db)
         db.commit()
@@ -142,19 +147,9 @@ def authentication_required_handler(request: Request, exc: AuthenticationRequire
 
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "dev-session-secret"))
 
-LOAN_CATEGORIES = [
-    "Influencer / creador",
-    "Produccion de contenido",
-    "Evento / activacion",
-    "Prensa / medios",
-    "Cliente VIP",
-    "Uso interno marketing",
-    "Agencia / proveedor",
-    "Test drive / experiencia de marca",
-    "Logistica / traslado",
-    "Mantenimiento / preparacion",
-    "Otro",
-]
+
+def load_loan_categories(db: Session):
+    return db.scalars(select(LoanCategory).order_by(LoanCategory.name)).all()
 
 
 def utc_now():
@@ -640,7 +635,7 @@ def list_loans(
         {
             "request": request,
             "loan_rows": loan_rows,
-            "loan_categories": LOAN_CATEGORIES,
+            "loan_categories": load_loan_categories(db),
             "teams": teams,
             "selected_team_id": selected_team_id,
             "selected_status": status or "",
@@ -675,7 +670,7 @@ def loan_detail(loan_id: int, request: Request, db: Session = Depends(get_db)):
         {
             "request": request,
             "row": row,
-            "loan_categories": LOAN_CATEGORIES,
+            "loan_categories": load_loan_categories(db),
             "historical_team_name": loan.team.name if loan.team else "Sin equipo",
         },
     )
@@ -1089,6 +1084,7 @@ def update_loan_category(
         return RedirectResponse(url="/vehicles", status_code=303)
 
     loan.loan_category = clean_optional(loan_category)
+    seed_ensure_loan_categories(db)
     db.commit()
     query = {
         "saved": str(loan.id),

@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from .auth import hash_password
 from .database import Base, SessionLocal, engine
-from .models import Loan, LoanAsset, Team, User, Vehicle, VehicleTransfer
+from .models import Loan, LoanAsset, LoanCategory, Team, User, Vehicle, VehicleTransfer
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -27,6 +27,20 @@ DEMO_TEAMS = [
     "Comercial A",
     "Operaciones Demo",
     "Administrativo",
+]
+
+LOAN_CATEGORY_NAMES = [
+    "Influencer / creador",
+    "Produccion de contenido",
+    "Evento / activacion",
+    "Prensa / medios",
+    "Cliente VIP",
+    "Uso interno marketing",
+    "Agencia / proveedor",
+    "Test drive / experiencia de marca",
+    "Logistica / traslado",
+    "Mantenimiento / preparacion",
+    "Otro",
 ]
 
 DEMO_VEHICLE_TEAMS = {
@@ -111,6 +125,19 @@ def ensure_team(db, name: str) -> Team:
     return team
 
 
+def ensure_loan_categories(db):
+    existing_names = set(db.scalars(select(LoanCategory.name)).all())
+    names_to_seed = list(LOAN_CATEGORY_NAMES)
+    names_to_seed.extend(
+        name
+        for name in db.scalars(select(Loan.loan_category).where(Loan.loan_category.is_not(None))).all()
+        if name
+    )
+    for name in dict.fromkeys(names_to_seed):
+        if name not in existing_names:
+            db.add(LoanCategory(name=name))
+
+
 def get_or_create_vehicle(db, data):
     vehicle = db.scalar(select(Vehicle).where(Vehicle.plate == data["plate"]))
     if not vehicle:
@@ -193,6 +220,7 @@ def seed():
             db.add(default_team)
             db.flush()
 
+        ensure_loan_categories(db)
         ensure_default_users(db)
         ensure_demo_teams(db)
 

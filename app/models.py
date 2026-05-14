@@ -106,6 +106,14 @@ class Team(Base):
     )
 
 
+class LoanCategory(Base):
+    __tablename__ = "loan_categories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+
 class User(Base):
     __tablename__ = "users"
 
