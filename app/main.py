@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, selectinload
 from .auth import AuthenticationRequired, get_session_user, require_user, verify_password
 from .database import Base, SessionLocal, engine, get_db
 from .models import Loan, LoanAsset, Team, User, Vehicle
-from .seed import ensure_default_users as seed_ensure_default_users
+from .seed import ensure_default_users as seed_ensure_default_users, ensure_demo_team_split
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -66,6 +66,11 @@ def ensure_schema():
             connection.exec_driver_sql(
                 "ALTER TABLE loans ADD COLUMN loan_category VARCHAR(80)"
             )
+        user_columns = {
+            row[1] for row in connection.exec_driver_sql("PRAGMA table_info(users)")
+        }
+        if "team_id" not in user_columns:
+            connection.exec_driver_sql("ALTER TABLE users ADD COLUMN team_id INTEGER")
 
 
 ensure_schema()
@@ -98,6 +103,7 @@ def ensure_demo_users():
     db = SessionLocal()
     try:
         seed_ensure_default_users(db)
+        ensure_demo_team_split(db)
         db.commit()
     finally:
         db.close()
@@ -233,6 +239,36 @@ def parse_optional_int(value: str | None) -> int | None:
         return None
 
 
+GLOBAL_ROLES = {"admin", "fleet_supervisor"}
+
+
+def is_global_user(user: User | None) -> bool:
+    return user is None or user.role in GLOBAL_ROLES
+
+
+def load_visible_teams(db: Session, user: User | None):
+    if is_global_user(user):
+        return load_teams(db)
+    if user.team_id is None:
+        return []
+    team = db.get(Team, user.team_id)
+    return [team] if team else []
+
+
+def resolve_team_scope(requested_team_id: str | None, user: User | None) -> int | None:
+    if is_global_user(user):
+        return parse_optional_int(requested_team_id)
+    return user.team_id
+
+
+def apply_team_scope(query, user: User | None, column):
+    if is_global_user(user):
+        return query
+    if user.team_id is None:
+        return query.where(column == -1)
+    return query.where(column == user.team_id)
+
+
 def pct(part: int | float, total: int | float) -> float:
     if not total:
         return 0
@@ -334,15 +370,18 @@ def dashboard(
     team_id: str | None = None,
     db: Session = Depends(get_db),
 ):
-    selected_team_id = parse_optional_int(team_id)
-    teams = load_teams(db)
+    current_user = request.state.current_user
+    selected_team_id = resolve_team_scope(team_id, current_user)
+    teams = load_visible_teams(db, current_user)
     vehicle_query = select(Vehicle).options(selectinload(Vehicle.loans))
     loan_query = (
         select(Loan)
         .options(selectinload(Loan.vehicle), selectinload(Loan.assets))
         .order_by(Loan.delivered_at.desc())
     )
-    if selected_team_id is not None:
+    vehicle_query = apply_team_scope(vehicle_query, current_user, Vehicle.team_id)
+    loan_query = apply_team_scope(loan_query, current_user, Loan.team_id)
+    if is_global_user(current_user) and selected_team_id is not None:
         vehicle_query = vehicle_query.where(Vehicle.team_id == selected_team_id)
         loan_query = loan_query.where(Loan.team_id == selected_team_id)
 
@@ -472,14 +511,16 @@ def list_vehicles(
     team_id: str | None = None,
     db: Session = Depends(get_db),
 ):
-    selected_team_id = parse_optional_int(team_id)
-    teams = load_teams(db)
+    current_user = request.state.current_user
+    selected_team_id = resolve_team_scope(team_id, current_user)
+    teams = load_visible_teams(db, current_user)
     vehicle_query = (
         select(Vehicle)
         .options(selectinload(Vehicle.loans).selectinload(Loan.assets))
         .order_by(Vehicle.created_at.desc())
     )
-    if selected_team_id is not None:
+    vehicle_query = apply_team_scope(vehicle_query, current_user, Vehicle.team_id)
+    if is_global_user(current_user) and selected_team_id is not None:
         vehicle_query = vehicle_query.where(Vehicle.team_id == selected_team_id)
 
     vehicles = db.scalars(vehicle_query).all()
@@ -524,14 +565,16 @@ def list_loans(
     team_id: str | None = None,
     db: Session = Depends(get_db),
 ):
-    selected_team_id = parse_optional_int(team_id)
-    teams = load_teams(db)
+    current_user = request.state.current_user
+    selected_team_id = resolve_team_scope(team_id, current_user)
+    teams = load_visible_teams(db, current_user)
     loans_query = (
         select(Loan)
         .options(selectinload(Loan.vehicle), selectinload(Loan.assets))
         .order_by(Loan.created_at.desc())
     )
-    if selected_team_id is not None:
+    loans_query = apply_team_scope(loans_query, current_user, Loan.team_id)
+    if is_global_user(current_user) and selected_team_id is not None:
         loans_query = loans_query.where(Loan.team_id == selected_team_id)
     loans = db.scalars(loans_query).all()
 
@@ -578,12 +621,15 @@ def list_loans(
 
 @app.get("/loans/{loan_id}")
 def loan_detail(loan_id: int, request: Request, db: Session = Depends(get_db)):
+    current_user = request.state.current_user
     loan = db.scalar(
         select(Loan)
         .options(selectinload(Loan.vehicle), selectinload(Loan.assets))
         .where(Loan.id == loan_id)
     )
     if loan is None:
+        return RedirectResponse(url="/loans", status_code=303)
+    if not is_global_user(current_user) and current_user.team_id != loan.team_id:
         return RedirectResponse(url="/loans", status_code=303)
 
     row = enrich_loans([loan])[0]
@@ -599,12 +645,15 @@ def loan_detail(loan_id: int, request: Request, db: Session = Depends(get_db)):
 
 @app.get("/operator/vehicles")
 def operator_vehicles(request: Request, db: Session = Depends(get_db)):
-    vehicles = db.scalars(
+    current_user = request.state.current_user
+    vehicle_query = (
         select(Vehicle)
         .options(selectinload(Vehicle.loans))
         .where(Vehicle.status != "retired")
         .order_by(Vehicle.status.desc(), Vehicle.created_at.desc())
-    ).all()
+    )
+    vehicle_query = apply_team_scope(vehicle_query, current_user, Vehicle.team_id)
+    vehicles = db.scalars(vehicle_query).all()
     vehicle_rows = [
         {
             "vehicle": vehicle,
@@ -634,6 +683,8 @@ def operator_vehicle_detail(
         .where(Vehicle.id == vehicle_id)
     )
     if vehicle is None:
+        return RedirectResponse(url="/operator/vehicles", status_code=303)
+    if not is_global_user(request.state.current_user) and request.state.current_user.team_id != vehicle.team_id:
         return RedirectResponse(url="/operator/vehicles", status_code=303)
 
     active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)
@@ -755,6 +806,8 @@ def vehicle_detail(
         .where(Vehicle.id == vehicle_id)
     )
     if vehicle is None:
+        return RedirectResponse(url="/vehicles", status_code=303)
+    if not is_global_user(request.state.current_user) and request.state.current_user.team_id != vehicle.team_id:
         return RedirectResponse(url="/vehicles", status_code=303)
 
     active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)

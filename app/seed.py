@@ -13,11 +13,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = BASE_DIR / "uploads"
 
 DEMO_USERS = [
-    {"username": "admin", "role": "admin", "password": "demo123"},
-    {"username": "fleet_supervisor", "role": "fleet_supervisor", "password": "demo123"},
-    {"username": "coordinator", "role": "coordinator", "password": "demo123"},
-    {"username": "operator", "role": "operator", "password": "demo123"},
-    {"username": "viewer", "role": "viewer", "password": "demo123"},
+    {"username": "admin", "role": "admin", "password": "demo123", "team_name": "Marketing Demo"},
+    {"username": "fleet_supervisor", "role": "fleet_supervisor", "password": "demo123", "team_name": "Marketing Demo"},
+    {"username": "coordinator", "role": "coordinator", "password": "demo123", "team_name": "Marketing Demo"},
+    {"username": "operator", "role": "operator", "password": "demo123", "team_name": "Operaciones Demo"},
+    {"username": "viewer", "role": "viewer", "password": "demo123", "team_name": "Operaciones Demo"},
 ]
 
 
@@ -63,6 +63,12 @@ def ensure_schema():
                 "ALTER TABLE loans ADD COLUMN loan_category VARCHAR(80)"
             )
 
+        user_columns = {
+            row[1] for row in connection.exec_driver_sql("PRAGMA table_info(users)")
+        }
+        if "team_id" not in user_columns:
+            connection.exec_driver_sql("ALTER TABLE users ADD COLUMN team_id INTEGER")
+
 
 def first_upload(pattern: str) -> str | None:
     matches = sorted((UPLOAD_DIR / "loan_assets").glob(pattern))
@@ -76,6 +82,15 @@ def first_vehicle_image() -> str | None:
     if not matches:
         return None
     return f"/uploads/vehicle_refs/{matches[0].name}"
+
+
+def ensure_team(db, name: str) -> Team:
+    team = db.scalar(select(Team).where(Team.name == name))
+    if team is None:
+        team = Team(name=name)
+        db.add(team)
+        db.flush()
+    return team
 
 
 def get_or_create_vehicle(db, data):
@@ -116,20 +131,34 @@ def add_asset(db, loan, category, path, filename, content_type):
 def ensure_default_users(db):
     for user_data in DEMO_USERS:
         user = db.scalar(select(User).where(User.username == user_data["username"]))
+        team = ensure_team(db, user_data["team_name"])
         password_hash = hash_password(user_data["password"])
         if user is None:
             db.add(
                 User(
                     username=user_data["username"],
+                    team_id=team.id if team else None,
                     role=user_data["role"],
                     password_hash=password_hash,
                     is_active=True,
                 )
             )
             continue
+        user.team_id = team.id if team else None
         user.role = user_data["role"]
         user.password_hash = password_hash
         user.is_active = True
+
+
+def ensure_demo_team_split(db):
+    operations_team = ensure_team(db, "Operaciones Demo")
+
+    operations_plates = {"VOL-505", "VOL-606"}
+    vehicles = db.scalars(select(Vehicle).where(Vehicle.plate.in_(operations_plates))).all()
+    for vehicle in vehicles:
+        vehicle.team_id = operations_team.id
+        for loan in vehicle.loans:
+            loan.team_id = operations_team.id
 
 
 def seed():
@@ -145,6 +174,7 @@ def seed():
             db.flush()
 
         ensure_default_users(db)
+        ensure_demo_team_split(db)
 
         agreement_path = first_upload("agreement-*")
         delivery_path = first_upload("delivery-*")

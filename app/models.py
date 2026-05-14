@@ -90,14 +90,18 @@ class Team(Base):
 
     vehicles: Mapped[list[Vehicle]] = relationship(back_populates="team")
     loans: Mapped[list[Loan]] = relationship(back_populates="team")
+    users: Mapped[list["User"]] = relationship(back_populates="team")
 
 
 class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), nullable=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(40), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    team: Mapped["Team"] = relationship(back_populates="users")
