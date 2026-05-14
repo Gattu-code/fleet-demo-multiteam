@@ -14,6 +14,7 @@ class Vehicle(Base):
     __tablename__ = "vehicles"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), nullable=True)
     brand: Mapped[str] = mapped_column(String(80), nullable=False)
     model: Mapped[str] = mapped_column(String(80), nullable=False)
     year: Mapped[int] = mapped_column(Integer, nullable=True)
@@ -29,6 +30,7 @@ class Vehicle(Base):
         cascade="all, delete-orphan",
         order_by="Loan.created_at.desc()",
     )
+    team: Mapped["Team"] = relationship(back_populates="vehicles")
 
 
 class Loan(Base):
@@ -36,6 +38,7 @@ class Loan(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=False)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), nullable=True)
     borrower_name: Mapped[str] = mapped_column(String(120), nullable=False)
     phone: Mapped[str] = mapped_column(String(40), nullable=True)
     email: Mapped[str] = mapped_column(String(120), nullable=True)
@@ -56,6 +59,7 @@ class Loan(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
     vehicle: Mapped[Vehicle] = relationship(back_populates="loans")
+    team: Mapped["Team"] = relationship(back_populates="loans")
     assets: Mapped[list["LoanAsset"]] = relationship(
         back_populates="loan",
         cascade="all, delete-orphan",
@@ -75,3 +79,25 @@ class LoanAsset(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
     loan: Mapped[Loan] = relationship(back_populates="assets")
+
+
+class Team(Base):
+    __tablename__ = "teams"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    vehicles: Mapped[list[Vehicle]] = relationship(back_populates="team")
+    loans: Mapped[list[Loan]] = relationship(back_populates="team")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(String(40), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)

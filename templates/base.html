@@ -116,10 +116,21 @@
       <div class="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
         <a href="/vehicles" class="text-lg font-semibold tracking-tight">Gestión de flotas (Marketing) :: Demo</a>
         <div class="flex items-center gap-3">
+          {% if request.state.current_user %}
           <a href="/dashboard" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Dashboard</a>
           <a href="/loans" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Prestamos</a>
           <a href="/operator/vehicles" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Operador</a>
           <a href="/vehicles/new" class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Nuevo vehiculo</a>
+          <div class="flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm">
+            <span class="font-medium">{{ request.state.current_user.username }}</span>
+            <span class="text-zinc-500">({{ request.state.current_user.role }})</span>
+          </div>
+          <form action="/logout" method="post">
+            <button class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100" type="submit">Salir</button>
+          </form>
+          {% else %}
+          <a href="/login" class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Ingresar</a>
+          {% endif %}
         </div>
       </div>
     </header>

@@ -20,6 +20,15 @@
       <option value="last_year" {% if selected_period == "last_year" %}selected{% endif %}>Anio anterior</option>
     </select>
   </label>
+  <label class="field min-w-56">
+    <span>Equipo</span>
+    <select name="team_id">
+      <option value="" {% if not selected_team_id %}selected{% endif %}>Todos</option>
+      {% for team in teams %}
+      <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
   <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Aplicar</button>
 </form>
 

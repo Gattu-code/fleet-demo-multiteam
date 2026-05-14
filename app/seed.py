@@ -4,12 +4,21 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from .auth import hash_password
 from .database import Base, SessionLocal, engine
-from .models import Loan, LoanAsset, Vehicle
+from .models import Loan, LoanAsset, Team, User, Vehicle
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = BASE_DIR / "uploads"
+
+DEMO_USERS = [
+    {"username": "admin", "role": "admin", "password": "demo123"},
+    {"username": "fleet_supervisor", "role": "fleet_supervisor", "password": "demo123"},
+    {"username": "coordinator", "role": "coordinator", "password": "demo123"},
+    {"username": "operator", "role": "operator", "password": "demo123"},
+    {"username": "viewer", "role": "viewer", "password": "demo123"},
+]
 
 
 def utc_now():
@@ -21,6 +30,8 @@ def ensure_schema():
         vehicle_columns = {
             row[1] for row in connection.exec_driver_sql("PRAGMA table_info(vehicles)")
         }
+        if "team_id" not in vehicle_columns:
+            connection.exec_driver_sql("ALTER TABLE vehicles ADD COLUMN team_id INTEGER")
         if "reference_image_path" not in vehicle_columns:
             connection.exec_driver_sql(
                 "ALTER TABLE vehicles ADD COLUMN reference_image_path VARCHAR(255)"
@@ -33,6 +44,8 @@ def ensure_schema():
         loan_columns = {
             row[1] for row in connection.exec_driver_sql("PRAGMA table_info(loans)")
         }
+        if "team_id" not in loan_columns:
+            connection.exec_driver_sql("ALTER TABLE loans ADD COLUMN team_id INTEGER")
         if "return_has_issues" not in loan_columns:
             connection.exec_driver_sql(
                 "ALTER TABLE loans ADD COLUMN return_has_issues BOOLEAN NOT NULL DEFAULT 0"
@@ -73,6 +86,8 @@ def get_or_create_vehicle(db, data):
         db.flush()
         return vehicle
 
+    if data.get("team_id") is not None and vehicle.team_id is None:
+        vehicle.team_id = data["team_id"]
     vehicle.brand = data["brand"]
     vehicle.model = data["model"]
     vehicle.year = data["year"]
@@ -98,12 +113,39 @@ def add_asset(db, loan, category, path, filename, content_type):
     )
 
 
+def ensure_default_users(db):
+    for user_data in DEMO_USERS:
+        user = db.scalar(select(User).where(User.username == user_data["username"]))
+        password_hash = hash_password(user_data["password"])
+        if user is None:
+            db.add(
+                User(
+                    username=user_data["username"],
+                    role=user_data["role"],
+                    password_hash=password_hash,
+                    is_active=True,
+                )
+            )
+            continue
+        user.role = user_data["role"]
+        user.password_hash = password_hash
+        user.is_active = True
+
+
 def seed():
     Base.metadata.create_all(bind=engine)
     ensure_schema()
 
     db = SessionLocal()
     try:
+        default_team = db.scalar(select(Team).where(Team.name == "Marketing Demo"))
+        if default_team is None:
+            default_team = Team(name="Marketing Demo")
+            db.add(default_team)
+            db.flush()
+
+        ensure_default_users(db)
+
         agreement_path = first_upload("agreement-*")
         delivery_path = first_upload("delivery-*")
         return_path = first_upload("return-*")
@@ -130,6 +172,7 @@ def seed():
                 "status": "available",
                 "has_open_issue": False,
                 "reference_image_path": vehicle_image_path,
+                "team_id": default_team.id,
             },
             {
                 "brand": "Volvo",
@@ -140,6 +183,7 @@ def seed():
                 "status": "assigned",
                 "has_open_issue": False,
                 "reference_image_path": vehicle_image_path,
+                "team_id": default_team.id,
             },
             {
                 "brand": "Volvo",
@@ -150,6 +194,7 @@ def seed():
                 "status": "available",
                 "has_open_issue": True,
                 "reference_image_path": vehicle_image_path,
+                "team_id": default_team.id,
             },
             {
                 "brand": "Volvo",
@@ -160,6 +205,7 @@ def seed():
                 "status": "available",
                 "has_open_issue": True,
                 "reference_image_path": vehicle_image_path,
+                "team_id": default_team.id,
             },
             {
                 "brand": "Volvo",
@@ -170,6 +216,7 @@ def seed():
                 "status": "available",
                 "has_open_issue": False,
                 "reference_image_path": vehicle_image_path,
+                "team_id": default_team.id,
             },
             {
                 "brand": "Volvo",
@@ -180,6 +227,7 @@ def seed():
                 "status": "available",
                 "has_open_issue": False,
                 "reference_image_path": vehicle_image_path,
+                "team_id": default_team.id,
             },
         ]
 
@@ -289,6 +337,7 @@ def seed():
         for item in demo_loans:
             loan_data = item.copy()
             vehicle = created[loan_data.pop("plate")]
+            loan_data["team_id"] = vehicle.team_id or default_team.id
             loan = Loan(vehicle_id=vehicle.id, **loan_data)
             db.add(loan)
             db.flush()

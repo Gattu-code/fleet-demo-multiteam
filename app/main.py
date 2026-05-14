@@ -6,13 +6,16 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse
+from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from .database import Base, engine, get_db
-from .models import Loan, LoanAsset, Vehicle
+from .auth import AuthenticationRequired, get_session_user, require_user, verify_password
+from .database import Base, SessionLocal, engine, get_db
+from .models import Loan, LoanAsset, Team, User, Vehicle
+from .seed import ensure_default_users as seed_ensure_default_users
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -32,6 +35,8 @@ def ensure_schema():
         vehicle_columns = {
             row[1] for row in connection.exec_driver_sql("PRAGMA table_info(vehicles)")
         }
+        if "team_id" not in vehicle_columns:
+            connection.exec_driver_sql("ALTER TABLE vehicles ADD COLUMN team_id INTEGER")
         if "reference_image_path" not in vehicle_columns:
             connection.exec_driver_sql(
                 "ALTER TABLE vehicles ADD COLUMN reference_image_path VARCHAR(255)"
@@ -43,6 +48,8 @@ def ensure_schema():
         loan_columns = {
             row[1] for row in connection.exec_driver_sql("PRAGMA table_info(loans)")
         }
+        if "team_id" not in loan_columns:
+            connection.exec_driver_sql("ALTER TABLE loans ADD COLUMN team_id INTEGER")
         if "return_has_issues" not in loan_columns:
             connection.exec_driver_sql(
                 "ALTER TABLE loans ADD COLUMN return_has_issues BOOLEAN NOT NULL DEFAULT 0"
@@ -63,10 +70,71 @@ def ensure_schema():
 
 ensure_schema()
 
+
+def ensure_default_team():
+    db = SessionLocal()
+    try:
+        team = db.scalar(select(Team).where(Team.name == "Marketing Demo"))
+        if team is None:
+            team = Team(name="Marketing Demo")
+            db.add(team)
+            db.flush()
+
+        for vehicle in db.scalars(select(Vehicle).where(Vehicle.team_id.is_(None))).all():
+            vehicle.team_id = team.id
+
+        for loan in db.scalars(select(Loan).where(Loan.team_id.is_(None))).all():
+            loan.team_id = team.id
+
+        db.commit()
+    finally:
+        db.close()
+
+
+ensure_default_team()
+
+
+def ensure_demo_users():
+    db = SessionLocal()
+    try:
+        seed_ensure_default_users(db)
+        db.commit()
+    finally:
+        db.close()
+
+
+ensure_demo_users()
+
 app = FastAPI(title="Gestión de flotas (Marketing) :: Demo")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.mount("/uploads", StaticFiles(directory=BASE_DIR / "uploads"), name="uploads")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+
+@app.middleware("http")
+async def attach_current_user(request: Request, call_next):
+    session_data = request.scope.get("session") or {}
+    user_id = session_data.get("user_id")
+    if user_id is None:
+        request.state.current_user = None
+    else:
+        db = SessionLocal()
+        try:
+            request.state.current_user = db.get(User, user_id)
+        finally:
+            db.close()
+    return await call_next(request)
+
+
+@app.exception_handler(AuthenticationRequired)
+def authentication_required_handler(request: Request, exc: AuthenticationRequired):
+    next_url = request.url.path
+    if request.url.query:
+        next_url = f"{next_url}?{request.url.query}"
+    return RedirectResponse(url=f"/login?next={next_url}", status_code=303)
+
+
+app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "dev-session-secret"))
 
 LOAN_CATEGORIES = [
     "Influencer / creador",
@@ -152,6 +220,19 @@ def enrich_loans(loans: list[Loan]):
     ]
 
 
+def load_teams(db: Session):
+    return db.scalars(select(Team).order_by(Team.name)).all()
+
+
+def parse_optional_int(value: str | None) -> int | None:
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
 def pct(part: int | float, total: int | float) -> float:
     if not total:
         return 0
@@ -190,23 +271,83 @@ def period_range(period: str | None):
     return None, None
 
 
+def login_redirect_target(next_url: str | None = None):
+    if not next_url:
+        return "/dashboard"
+    if not next_url.startswith("/"):
+        return "/dashboard"
+    return next_url
+
+
 @app.get("/")
 def home():
     return RedirectResponse(url="/dashboard", status_code=303)
+
+
+@app.get("/login")
+def login(request: Request, next: str | None = None):
+    if request.state.current_user:
+        return RedirectResponse(url=login_redirect_target(next), status_code=303)
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "next": login_redirect_target(next),
+        },
+    )
+
+
+@app.post("/login")
+def login_submit(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    next: str | None = Form(None),
+    db: Session = Depends(get_db),
+):
+    user = db.scalar(select(User).where(User.username == username.strip(), User.is_active.is_(True)))
+    if user is None or not verify_password(password, user.password_hash):
+        return templates.TemplateResponse(
+            "login.html",
+            {
+                "request": request,
+                "next": login_redirect_target(next),
+                "error": "Credenciales invalidas",
+            },
+            status_code=401,
+        )
+
+    request.session["user_id"] = user.id
+    return RedirectResponse(url=login_redirect_target(next), status_code=303)
+
+
+@app.post("/logout")
+def logout(request: Request):
+    request.session.pop("user_id", None)
+    return RedirectResponse(url="/login", status_code=303)
 
 
 @app.get("/dashboard")
 def dashboard(
     request: Request,
     period: str | None = "all",
+    team_id: str | None = None,
     db: Session = Depends(get_db),
 ):
-    vehicles = db.scalars(select(Vehicle).options(selectinload(Vehicle.loans))).all()
-    all_loans = db.scalars(
+    selected_team_id = parse_optional_int(team_id)
+    teams = load_teams(db)
+    vehicle_query = select(Vehicle).options(selectinload(Vehicle.loans))
+    loan_query = (
         select(Loan)
         .options(selectinload(Loan.vehicle), selectinload(Loan.assets))
         .order_by(Loan.delivered_at.desc())
-    ).all()
+    )
+    if selected_team_id is not None:
+        vehicle_query = vehicle_query.where(Vehicle.team_id == selected_team_id)
+        loan_query = loan_query.where(Loan.team_id == selected_team_id)
+
+    vehicles = db.scalars(vehicle_query).all()
+    all_loans = db.scalars(loan_query).all()
     start, end = period_range(period)
     loans = [
         loan for loan in all_loans
@@ -293,6 +434,8 @@ def dashboard(
         {
             "request": request,
             "selected_period": period or "all",
+            "selected_team_id": selected_team_id,
+            "teams": teams,
             "total_loans": total_loans,
             "active_loans": active_loans,
             "returned_loans": returned_loans,
@@ -324,12 +467,22 @@ def dashboard(
 
 
 @app.get("/vehicles")
-def list_vehicles(request: Request, db: Session = Depends(get_db)):
-    vehicles = db.scalars(
+def list_vehicles(
+    request: Request,
+    team_id: str | None = None,
+    db: Session = Depends(get_db),
+):
+    selected_team_id = parse_optional_int(team_id)
+    teams = load_teams(db)
+    vehicle_query = (
         select(Vehicle)
         .options(selectinload(Vehicle.loans).selectinload(Loan.assets))
         .order_by(Vehicle.created_at.desc())
-    ).all()
+    )
+    if selected_team_id is not None:
+        vehicle_query = vehicle_query.where(Vehicle.team_id == selected_team_id)
+
+    vehicles = db.scalars(vehicle_query).all()
     vehicle_rows = []
     for vehicle in vehicles:
         active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)
@@ -351,7 +504,12 @@ def list_vehicles(request: Request, db: Session = Depends(get_db)):
 
     return templates.TemplateResponse(
         "vehicles/list.html",
-        {"request": request, "vehicle_rows": vehicle_rows},
+        {
+            "request": request,
+            "vehicle_rows": vehicle_rows,
+            "teams": teams,
+            "selected_team_id": selected_team_id,
+        },
     )
 
 
@@ -363,13 +521,19 @@ def list_loans(
     agreement: str | None = None,
     vehicle_id: int | None = None,
     saved: int | None = None,
+    team_id: str | None = None,
     db: Session = Depends(get_db),
 ):
-    loans = db.scalars(
+    selected_team_id = parse_optional_int(team_id)
+    teams = load_teams(db)
+    loans_query = (
         select(Loan)
         .options(selectinload(Loan.vehicle), selectinload(Loan.assets))
         .order_by(Loan.created_at.desc())
-    ).all()
+    )
+    if selected_team_id is not None:
+        loans_query = loans_query.where(Loan.team_id == selected_team_id)
+    loans = db.scalars(loans_query).all()
 
     loan_rows = []
     for loan in loans:
@@ -401,6 +565,8 @@ def list_loans(
             "request": request,
             "loan_rows": loan_rows,
             "loan_categories": LOAN_CATEGORIES,
+            "teams": teams,
+            "selected_team_id": selected_team_id,
             "selected_status": status or "",
             "selected_category": category or "",
             "selected_agreement": agreement or "",
@@ -459,6 +625,7 @@ def operator_vehicles(request: Request, db: Session = Depends(get_db)):
 def operator_vehicle_detail(
     vehicle_id: int,
     request: Request,
+    current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
     vehicle = db.scalar(
@@ -477,7 +644,7 @@ def operator_vehicle_detail(
 
 
 @app.get("/vehicles/new")
-def new_vehicle(request: Request):
+def new_vehicle(request: Request, current_user: User = Depends(require_user)):
     return templates.TemplateResponse("vehicles/new.html", {"request": request})
 
 
@@ -489,10 +656,17 @@ def create_vehicle(
     plate: str = Form(...),
     color: str | None = Form(None),
     reference_image: UploadFile | None = File(None),
+    current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
     reference_image_path = save_upload(reference_image, "vehicle", VEHICLE_IMAGE_DIR)
+    default_team = db.scalar(select(Team).where(Team.name == "Marketing Demo"))
+    if default_team is None:
+        default_team = Team(name="Marketing Demo")
+        db.add(default_team)
+        db.flush()
     vehicle = Vehicle(
+        team_id=default_team.id,
         brand=brand.strip(),
         model=model.strip(),
         year=year,
@@ -507,7 +681,12 @@ def create_vehicle(
 
 
 @app.get("/vehicles/{vehicle_id}/edit")
-def edit_vehicle(vehicle_id: int, request: Request, db: Session = Depends(get_db)):
+def edit_vehicle(
+    vehicle_id: int,
+    request: Request,
+    current_user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
     vehicle = db.scalar(
         select(Vehicle)
         .options(selectinload(Vehicle.loans))
@@ -533,6 +712,7 @@ def update_vehicle(
     has_open_issue: bool = Form(False),
     is_retired: bool = Form(False),
     reference_image: UploadFile | None = File(None),
+    current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
     vehicle = db.scalar(
@@ -563,7 +743,12 @@ def update_vehicle(
 
 
 @app.get("/vehicles/{vehicle_id}")
-def vehicle_detail(vehicle_id: int, request: Request, db: Session = Depends(get_db)):
+def vehicle_detail(
+    vehicle_id: int,
+    request: Request,
+    current_user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
     vehicle = db.scalar(
         select(Vehicle)
         .options(selectinload(Vehicle.loans).selectinload(Loan.assets))
@@ -599,14 +784,24 @@ def deliver_vehicle(
     delivery_files: list[UploadFile] = File(default=[]),
     agreement_file: UploadFile | None = File(None),
     redirect_to: str | None = Form(None),
+    current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
     vehicle = db.get(Vehicle, vehicle_id)
     if vehicle is None or vehicle.status != "available":
         return RedirectResponse(url="/vehicles", status_code=303)
 
+    if vehicle.team_id is None:
+        default_team = db.scalar(select(Team).where(Team.name == "Marketing Demo"))
+        if default_team is None:
+            default_team = Team(name="Marketing Demo")
+            db.add(default_team)
+            db.flush()
+        vehicle.team_id = default_team.id
+
     loan = Loan(
         vehicle_id=vehicle.id,
+        team_id=vehicle.team_id,
         borrower_name=borrower_name.strip(),
         phone=clean_optional(phone),
         email=clean_optional(email),
@@ -629,7 +824,12 @@ def deliver_vehicle(
 
 
 @app.get("/loans/{loan_id}/edit-delivery")
-def edit_delivery(loan_id: int, request: Request, db: Session = Depends(get_db)):
+def edit_delivery(
+    loan_id: int,
+    request: Request,
+    current_user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
     loan = db.scalar(
         select(Loan)
         .options(selectinload(Loan.assets), selectinload(Loan.vehicle))
@@ -658,6 +858,7 @@ def update_delivery(
     agreement_signed: bool = Form(False),
     delivery_files: list[UploadFile] = File(default=[]),
     agreement_file: UploadFile | None = File(None),
+    current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
     loan = db.get(Loan, loan_id)
@@ -687,6 +888,8 @@ def update_loan_category(
     filter_category: str | None = Form(None),
     filter_agreement: str | None = Form(None),
     filter_vehicle_id: int | None = Form(None),
+    filter_team_id: int | None = Form(None),
+    current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
     loan = db.get(Loan, loan_id)
@@ -706,6 +909,8 @@ def update_loan_category(
         query["agreement"] = filter_agreement
     if filter_vehicle_id:
         query["vehicle_id"] = str(filter_vehicle_id)
+    if filter_team_id:
+        query["team_id"] = str(filter_team_id)
     return RedirectResponse(url=f"/loans?{urlencode(query)}", status_code=303)
 
 
@@ -720,6 +925,7 @@ def return_vehicle(
     return_files: list[UploadFile] = File(default=[]),
     return_issue_files: list[UploadFile] = File(default=[]),
     redirect_to: str | None = Form(None),
+    current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
     loan = db.get(Loan, loan_id)
