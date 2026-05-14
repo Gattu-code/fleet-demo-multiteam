@@ -1,27 +1,26 @@
 # FlotasMultimarca AS
 
-Sistema de gestión de flotas de mercadeo para Astara.
+Sistema de gestion de flotas de mercadeo para Astara.
 
 Objetivo:
-Controlar vehículos asignados a diferentes equipos de mercadeo y operación, incluyendo préstamos, entregas, devoluciones, evidencia fotográfica, comodatos e historial operativo.
+Controlar vehiculos asignados a diferentes equipos de mercadeo y operacion, incluyendo prestamos, entregas, devoluciones, evidencia fotografica, comodatos e historial operativo.
 
-La aplicación debe reutilizar el proyecto fleet-demo existente.
+La aplicacion reutiliza el proyecto fleet-demo existente y lo evoluciona de forma incremental.
 
 Prioridades:
-- Reutilizar estilos y templates existentes
-- Mantener SQLite inicialmente
-- Mantener FastAPI
-- Mantener Docker deployment actual
-- Evolucionar incrementalmente
+- reutilizar estilos y templates existentes
+- mantener SQLite inicialmente
+- mantener FastAPI
+- mantener Docker deployment actual
+- evolucionar sin romper el demo
 
-Nuevos conceptos:
-- Equipos
-- Usuarios
-- Roles
-- Permisos por equipo
-- Transferencias de vehículos
-- Campañas pendientes
-- Supervisor transversal
+Conceptos ya presentes:
+- equipos
+- usuarios
+- roles
+- scopes por equipo
+- transferencias de vehiculos
+- supervisor transversal
 
 Roles:
 - admin
@@ -31,7 +30,15 @@ Roles:
 - viewer
 
 Reglas:
-- Una placa no puede existir dos veces
-- Un vehículo no puede tener dos préstamos activos
-- No borrar historial
-- Los préstamos mantienen trazabilidad histórica
+- una placa no puede existir dos veces
+- un vehiculo no puede tener dos prestamos activos
+- no borrar historial
+- los prestamos mantienen trazabilidad historica con `loan.team_id`
+
+Separacion funcional:
+- operacion: entrega, devolucion, novedades y vista operativa
+- administracion: configuracion, inventario y transferencia de vehiculos
+
+Estado:
+- Fase 1 cerrada: equipos, auth basica, scopes, operador operativo y transferencias
+- Fase 2 pendiente: datos maestros y configuracion administrativa

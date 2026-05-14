@@ -1,22 +1,31 @@
 # TASKS
 
 ## Fase 1
-- Agregar autenticación
-- Crear roles
-- Crear equipos
-- Asociar vehículos a equipos
-- Restringir visibilidad por equipo
-- Validar placa única
-- Agregar transferencias entre equipos
+Hecha y estabilizada.
+
+- autenticacion basica con sesiones
+- roles demo
+- equipos y asignacion de vehiculos
+- scopes por equipo
+- vista operativa para operator
+- transferencias entre equipos
+- trazabilidad historica con `loan.team_id`
 
 ## Fase 2
-- Dashboard operativo
-- Campañas
-- Configuración por equipo
-- Aprobaciones opcionales
+Pendiente de implementacion.
+
+- datos maestros y configuracion administrativa
+- catalogos de categorias de prestamo
+- estados y motivos operativos
+- configuracion por equipo
+- administracion de usuarios y equipos
+- ajuste fino de pantallas administrativas
 
 ## Fase 3
-- PDF dinámico
-- Notificaciones
-- IA
-- Integraciones
+Pendiente de definicion.
+
+- campanas
+- aprobaciones opcionales
+- PDF dinamico
+- notificaciones
+- integraciones

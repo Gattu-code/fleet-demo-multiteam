@@ -1,57 +1,65 @@
-# Fleet Demo
+# FlotasMultimarca AS
 
-Demo interno para controlar préstamos de vehículos de marketing con FastAPI, SQLite, SQLAlchemy, Jinja2 y TailwindCSS.
+Sistema de gestion de flotas de mercadeo para Astara.
 
-## Setup
+Estado actual:
+- FastAPI + SQLite + SQLAlchemy + Jinja2
+- autenticacion basica con sesiones
+- roles: admin, fleet_supervisor, coordinator, operator, viewer
+- scopes por equipo
+- inventario, prestamos, devoluciones, evidencia e historial
+- transferencias de vehiculos entre equipos
+
+## Inicio rapido
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+python -m app.seed
 uvicorn app.main:app --reload
 ```
 
-Luego abre:
+Abre:
 
 ```text
 http://127.0.0.1:8000
 ```
 
-## Estructura
+## Entradas utiles
 
-```text
-app/
-  database.py
-  main.py
-  models.py
-templates/
-  base.html
-  vehicles/
-static/
-  css/app.css
-uploads/
-  loan_photos/
-```
-
-La base SQLite local se crea automáticamente como `./data/fleet.db` al arrancar la app.
+- `README.md`: punto de entrada
+- `PROJECT_BRIEF.md`: objetivo vigente del producto
+- `ARCHITECTURE.md`: arquitectura actual
+- `DECISIONS.md`: decisiones ya cerradas
+- `TASK.md`: roadmap incremental
 
 ## Datos demo
+
+La semilla crea equipos, usuarios demo, vehiculos y prestamos distribuidos por equipo para probar scopes y transferencias.
 
 ```powershell
 python -m app.seed
 ```
 
-## Docker production
+Usuarios demo:
+- `admin` / `demo123`
+- `fleet_supervisor` / `demo123`
+- `coordinator` / `demo123`
+- `operator` / `demo123`
+- `viewer` / `demo123`
 
-El contenedor usa:
+## Flujo por rol
 
-- SQLite persistente en `/app/data/fleet.db`
-- Uploads persistentes en `/app/uploads`
-- Uvicorn en `0.0.0.0:8000`
-- Caddy como reverse proxy para `fleet.nxtsln.cloud`
+- `admin` y `fleet_supervisor`: vista global y gestion administrativa
+- `coordinator`: vista acotada a su equipo
+- `operator`: vista operativa en `/operator/vehicles`
+- `viewer`: solo lectura dentro de su equipo
+
+## Docker
 
 ```bash
 docker compose up -d --build
 ```
 
-Antes de levantar en produccion, apunta el DNS de `fleet.nxtsln.cloud` al servidor donde corre Docker. Caddy gestionara HTTPS automaticamente.
+El contenedor usa SQLite persistente en `/app/data/fleet.db` y uploads persistentes en `/app/uploads`.
