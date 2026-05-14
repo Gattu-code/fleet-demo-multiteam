@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .auth import AuthenticationRequired, get_session_user, require_user, verify_password
 from .database import Base, SessionLocal, engine, get_db
-from .models import Loan, LoanAsset, Team, User, Vehicle
+from .models import Loan, LoanAsset, Team, User, Vehicle, VehicleTransfer
 from .seed import ensure_default_users as seed_ensure_default_users, ensure_demo_teams
 
 
@@ -246,6 +246,30 @@ def is_global_user(user: User | None) -> bool:
     return user is None or user.role in GLOBAL_ROLES
 
 
+def can_transfer_vehicle(user: User | None, vehicle: Vehicle) -> bool:
+    if user is None:
+        return False
+    if user.role in GLOBAL_ROLES:
+        return True
+    return user.role == "coordinator" and user.team_id is not None and user.team_id == vehicle.team_id
+
+
+def can_admin_vehicle(user: User | None, vehicle: Vehicle | None = None) -> bool:
+    if user is None:
+        return False
+    if user.role in GLOBAL_ROLES:
+        return True
+    if user.role != "coordinator" or user.team_id is None or vehicle is None:
+        return False
+    return vehicle.team_id == user.team_id
+
+
+def admin_vehicle_redirect(user: User | None) -> str:
+    if user is not None and user.role == "operator":
+        return "/operator/vehicles"
+    return "/vehicles"
+
+
 def load_visible_teams(db: Session, user: User | None):
     if is_global_user(user):
         return load_teams(db)
@@ -307,7 +331,11 @@ def period_range(period: str | None):
     return None, None
 
 
-def login_redirect_target(next_url: str | None = None):
+def login_redirect_target(next_url: str | None = None, user: User | None = None):
+    if user is not None and user.role == "operator":
+        if next_url and next_url.startswith("/operator"):
+            return next_url
+        return "/operator/vehicles"
     if not next_url:
         return "/dashboard"
     if not next_url.startswith("/"):
@@ -323,7 +351,7 @@ def home():
 @app.get("/login")
 def login(request: Request, next: str | None = None):
     if request.state.current_user:
-        return RedirectResponse(url=login_redirect_target(next), status_code=303)
+        return RedirectResponse(url=login_redirect_target(next, request.state.current_user), status_code=303)
     return templates.TemplateResponse(
         "login.html",
         {
@@ -354,7 +382,7 @@ def login_submit(
         )
 
     request.session["user_id"] = user.id
-    return RedirectResponse(url=login_redirect_target(next), status_code=303)
+    return RedirectResponse(url=login_redirect_target(next, user), status_code=303)
 
 
 @app.post("/logout")
@@ -371,6 +399,11 @@ def dashboard(
     db: Session = Depends(get_db),
 ):
     current_user = request.state.current_user
+    if current_user is not None and current_user.role == "operator":
+        operator_target = "/operator/vehicles"
+        if team_id:
+            operator_target = f"{operator_target}?team_id={team_id}"
+        return RedirectResponse(url=operator_target, status_code=303)
     selected_team_id = resolve_team_scope(team_id, current_user)
     teams = load_visible_teams(db, current_user)
     vehicle_query = select(Vehicle).options(selectinload(Vehicle.loans))
@@ -624,7 +657,7 @@ def loan_detail(loan_id: int, request: Request, db: Session = Depends(get_db)):
     current_user = request.state.current_user
     loan = db.scalar(
         select(Loan)
-        .options(selectinload(Loan.vehicle), selectinload(Loan.assets))
+        .options(selectinload(Loan.vehicle), selectinload(Loan.assets), selectinload(Loan.team))
         .where(Loan.id == loan_id)
     )
     if loan is None:
@@ -639,7 +672,12 @@ def loan_detail(loan_id: int, request: Request, db: Session = Depends(get_db)):
     )
     return templates.TemplateResponse(
         "loans/detail.html",
-        {"request": request, "row": row, "loan_categories": LOAN_CATEGORIES},
+        {
+            "request": request,
+            "row": row,
+            "loan_categories": LOAN_CATEGORIES,
+            "historical_team_name": loan.team.name if loan.team else "Sin equipo",
+        },
     )
 
 
@@ -679,7 +717,7 @@ def operator_vehicle_detail(
 ):
     vehicle = db.scalar(
         select(Vehicle)
-        .options(selectinload(Vehicle.loans).selectinload(Loan.assets))
+        .options(selectinload(Vehicle.loans).selectinload(Loan.assets), selectinload(Vehicle.loans).selectinload(Loan.team))
         .where(Vehicle.id == vehicle_id)
     )
     if vehicle is None:
@@ -690,12 +728,19 @@ def operator_vehicle_detail(
     active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)
     return templates.TemplateResponse(
         "operator/detail.html",
-        {"request": request, "vehicle": vehicle, "active_loan": active_loan},
+        {
+            "request": request,
+            "vehicle": vehicle,
+            "active_loan": active_loan,
+            "historical_team_name": active_loan.team.name if active_loan and active_loan.team else "Sin equipo",
+        },
     )
 
 
 @app.get("/vehicles/new")
 def new_vehicle(request: Request, current_user: User = Depends(require_user)):
+    if current_user.role not in GLOBAL_ROLES:
+        return RedirectResponse(url=admin_vehicle_redirect(current_user), status_code=303)
     return templates.TemplateResponse("vehicles/new.html", {"request": request})
 
 
@@ -710,6 +755,8 @@ def create_vehicle(
     current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
+    if current_user.role not in GLOBAL_ROLES:
+        return RedirectResponse(url=admin_vehicle_redirect(current_user), status_code=303)
     reference_image_path = save_upload(reference_image, "vehicle", VEHICLE_IMAGE_DIR)
     default_team = db.scalar(select(Team).where(Team.name == "Marketing Demo"))
     if default_team is None:
@@ -740,15 +787,26 @@ def edit_vehicle(
 ):
     vehicle = db.scalar(
         select(Vehicle)
-        .options(selectinload(Vehicle.loans))
+        .options(selectinload(Vehicle.loans), selectinload(Vehicle.team))
         .where(Vehicle.id == vehicle_id)
     )
     if vehicle is None:
         return RedirectResponse(url="/vehicles", status_code=303)
+    if not can_admin_vehicle(current_user, vehicle):
+        return RedirectResponse(url=admin_vehicle_redirect(current_user), status_code=303)
+
+    active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)
 
     return templates.TemplateResponse(
         "vehicles/edit.html",
-        {"request": request, "vehicle": vehicle},
+        {
+            "request": request,
+            "vehicle": vehicle,
+            "transfer_teams": [team for team in load_teams(db) if team.id != vehicle.team_id],
+            "can_transfer": can_transfer_vehicle(current_user, vehicle),
+            "current_team_name": vehicle.team.name if vehicle.team else "Sin equipo",
+            "active_loan": active_loan,
+        },
     )
 
 
@@ -773,6 +831,8 @@ def update_vehicle(
     )
     if vehicle is None:
         return RedirectResponse(url="/vehicles", status_code=303)
+    if not can_admin_vehicle(current_user, vehicle):
+        return RedirectResponse(url=admin_vehicle_redirect(current_user), status_code=303)
 
     reference_image_path = save_upload(reference_image, "vehicle", VEHICLE_IMAGE_DIR)
     vehicle.brand = brand.strip()
@@ -802,12 +862,23 @@ def vehicle_detail(
 ):
     vehicle = db.scalar(
         select(Vehicle)
-        .options(selectinload(Vehicle.loans).selectinload(Loan.assets))
+        .options(
+            selectinload(Vehicle.loans).selectinload(Loan.assets),
+            selectinload(Vehicle.transfer_history).selectinload(VehicleTransfer.from_team),
+            selectinload(Vehicle.transfer_history).selectinload(VehicleTransfer.to_team),
+            selectinload(Vehicle.transfer_history).selectinload(VehicleTransfer.transferred_by_user),
+        )
         .where(Vehicle.id == vehicle_id)
     )
     if vehicle is None:
         return RedirectResponse(url="/vehicles", status_code=303)
-    if not is_global_user(request.state.current_user) and request.state.current_user.team_id != vehicle.team_id:
+    if current_user.role == "operator":
+        team_id = request.query_params.get("team_id")
+        target = f"/operator/vehicles/{vehicle.id}"
+        if team_id:
+            target = f"{target}?team_id={team_id}"
+        return RedirectResponse(url=target, status_code=303)
+    if not is_global_user(current_user) and current_user.team_id != vehicle.team_id:
         return RedirectResponse(url="/vehicles", status_code=303)
 
     active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)
@@ -818,8 +889,76 @@ def vehicle_detail(
             "vehicle": vehicle,
             "active_loan": active_loan,
             "loan_rows": enrich_loans(vehicle.loans),
+            "transfer_teams": [team for team in load_teams(db) if team.id != vehicle.team_id],
+            "can_transfer": can_transfer_vehicle(current_user, vehicle),
         },
     )
+
+
+@app.post("/vehicles/{vehicle_id}/transfer")
+def transfer_vehicle(
+    vehicle_id: int,
+    request: Request,
+    to_team_id: int = Form(...),
+    notes: str | None = Form(None),
+    current_user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    vehicle = db.scalar(
+        select(Vehicle)
+        .options(selectinload(Vehicle.loans))
+        .where(Vehicle.id == vehicle_id)
+    )
+    if vehicle is None:
+        return RedirectResponse(url="/vehicles", status_code=303)
+
+    if not can_transfer_vehicle(current_user, vehicle):
+        transfer_team = request.query_params.get("team_id")
+        suffix = f"?transfer_error=forbidden"
+        if transfer_team:
+            suffix = f"?team_id={transfer_team}&transfer_error=forbidden"
+        return RedirectResponse(url=f"/vehicles/{vehicle.id}/edit{suffix}", status_code=303)
+
+    active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)
+    if active_loan is not None:
+        transfer_team = request.query_params.get("team_id")
+        suffix = f"?transfer_error=active_loan"
+        if transfer_team:
+            suffix = f"?team_id={transfer_team}&transfer_error=active_loan"
+        return RedirectResponse(url=f"/vehicles/{vehicle.id}/edit{suffix}", status_code=303)
+
+    target_team = db.get(Team, to_team_id)
+    if target_team is None or target_team.id == vehicle.team_id:
+        transfer_team = request.query_params.get("team_id")
+        suffix = f"?transfer_error=invalid_team"
+        if transfer_team:
+            suffix = f"?team_id={transfer_team}&transfer_error=invalid_team"
+        return RedirectResponse(url=f"/vehicles/{vehicle.id}/edit{suffix}", status_code=303)
+
+    from_team_id = vehicle.team_id
+    if from_team_id is None:
+        transfer_team = request.query_params.get("team_id")
+        suffix = f"?transfer_error=missing_team"
+        if transfer_team:
+            suffix = f"?team_id={transfer_team}&transfer_error=missing_team"
+        return RedirectResponse(url=f"/vehicles/{vehicle.id}/edit{suffix}", status_code=303)
+
+    transfer = VehicleTransfer(
+        vehicle_id=vehicle.id,
+        from_team_id=from_team_id,
+        to_team_id=target_team.id,
+        transferred_by_user_id=current_user.id,
+        notes=clean_optional(notes),
+    )
+    vehicle.team_id = target_team.id
+    db.add(transfer)
+    db.commit()
+
+    query = {"transfer_success": "1", "transfer_team_name": target_team.name}
+    transfer_team = request.query_params.get("team_id")
+    if transfer_team:
+        query["team_id"] = transfer_team
+    return RedirectResponse(url=f"/vehicles/{vehicle.id}/edit?{urlencode(query)}", status_code=303)
 
 
 @app.post("/vehicles/{vehicle_id}/deliver")
@@ -978,6 +1117,7 @@ def return_vehicle(
     return_files: list[UploadFile] = File(default=[]),
     return_issue_files: list[UploadFile] = File(default=[]),
     redirect_to: str | None = Form(None),
+    team_id: str | None = Form(None),
     current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
@@ -1002,6 +1142,7 @@ def return_vehicle(
     if return_has_issues:
         loan.vehicle.has_open_issue = True
     db.commit()
-    if redirect_to == "operator":
-        return RedirectResponse(url=f"/operator/vehicles/{loan.vehicle_id}", status_code=303)
-    return RedirectResponse(url=f"/vehicles/{loan.vehicle_id}", status_code=303)
+    redirect_target = "/operator/vehicles" if redirect_to == "operator" else "/vehicles"
+    if team_id:
+        redirect_target = f"{redirect_target}?team_id={team_id}"
+    return RedirectResponse(url=redirect_target, status_code=303)

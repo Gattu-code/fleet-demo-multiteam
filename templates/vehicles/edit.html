@@ -7,6 +7,28 @@
   <h1 class="mt-2 text-2xl font-semibold tracking-tight">Editar vehiculo</h1>
   <p class="mt-1 text-sm text-zinc-600">{{ vehicle.brand }} {{ vehicle.model }} / {{ vehicle.plate }}</p>
 
+  {% if request.query_params.get("transfer_error") %}
+  <section class="mt-6 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+    {% if request.query_params.get("transfer_error") == "active_loan" %}
+    No se puede transferir este vehiculo porque tiene un prestamo activo.
+    {% elif request.query_params.get("transfer_error") == "forbidden" %}
+    No tienes permiso para transferir este vehiculo.
+    {% elif request.query_params.get("transfer_error") == "invalid_team" %}
+    Debes seleccionar un equipo destino distinto.
+    {% elif request.query_params.get("transfer_error") == "missing_team" %}
+    El vehiculo debe tener un equipo actual para transferirse.
+    {% else %}
+    No fue posible completar la transferencia.
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if request.query_params.get("transfer_success") %}
+  <section class="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+    Vehiculo transferido correctamente a {{ request.query_params.get("transfer_team_name") or "su nuevo equipo" }}.
+  </section>
+  {% endif %}
+
   <form action="/vehicles/{{ vehicle.id }}/edit" method="post" enctype="multipart/form-data" class="mt-6 space-y-5 rounded-lg border border-zinc-200 bg-white p-6">
     {% if vehicle.reference_image_path %}
     <a href="{{ vehicle.reference_image_path }}" target="_blank" class="block overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100">
@@ -64,5 +86,48 @@
       <a href="/vehicles/{{ vehicle.id }}" class="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100">Cancelar</a>
     </div>
   </form>
+
+  {% if can_transfer %}
+  <section class="mt-6 rounded-lg border border-zinc-200 bg-white p-6">
+    <h2 class="text-lg font-semibold">Transferir vehiculo</h2>
+    <p class="mt-1 text-sm text-zinc-600">Gestion administrativa interna. No modifica el historial de prestamos.</p>
+    <div class="mt-4 rounded-md border border-zinc-200 bg-zinc-50 p-4">
+      <dl class="grid gap-3 text-sm sm:grid-cols-2">
+        <div>
+          <dt class="text-zinc-500">Equipo actual</dt>
+          <dd class="font-medium text-zinc-950">{{ current_team_name }}</dd>
+        </div>
+        <div>
+          <dt class="text-zinc-500">Condicion</dt>
+          <dd class="text-zinc-700">Se bloquea automaticamente si tiene prestamo activo</dd>
+        </div>
+      </dl>
+    </div>
+    {% if active_loan %}
+    <div class="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      No es posible transferir este vehiculo porque tiene un prestamo activo.
+    </div>
+    {% else %}
+    <form action="/vehicles/{{ vehicle.id }}/transfer{% if request.query_params.get('team_id') %}?team_id={{ request.query_params.get('team_id') }}{% endif %}" method="post" class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] lg:items-end">
+      <label class="field">
+        <span>Equipo destino</span>
+        <select name="to_team_id" required>
+          <option value="">Seleccionar</option>
+          {% for team in transfer_teams %}
+          <option value="{{ team.id }}">{{ team.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        <span>Notas</span>
+        <textarea name="notes" rows="2" placeholder="Motivo de la transferencia"></textarea>
+      </label>
+      <div class="flex lg:justify-end">
+        <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Transferir</button>
+      </div>
+    </form>
+    {% endif %}
+  </section>
+  {% endif %}
 </div>
 {% endblock %}

@@ -30,6 +30,11 @@ class Vehicle(Base):
         cascade="all, delete-orphan",
         order_by="Loan.created_at.desc()",
     )
+    transfer_history: Mapped[list["VehicleTransfer"]] = relationship(
+        back_populates="vehicle",
+        cascade="all, delete-orphan",
+        order_by="VehicleTransfer.created_at.desc()",
+    )
     team: Mapped["Team"] = relationship(back_populates="vehicles")
 
 
@@ -91,6 +96,14 @@ class Team(Base):
     vehicles: Mapped[list[Vehicle]] = relationship(back_populates="team")
     loans: Mapped[list[Loan]] = relationship(back_populates="team")
     users: Mapped[list["User"]] = relationship(back_populates="team")
+    transfers_from: Mapped[list["VehicleTransfer"]] = relationship(
+        back_populates="from_team",
+        foreign_keys="VehicleTransfer.from_team_id",
+    )
+    transfers_to: Mapped[list["VehicleTransfer"]] = relationship(
+        back_populates="to_team",
+        foreign_keys="VehicleTransfer.to_team_id",
+    )
 
 
 class User(Base):
@@ -105,3 +118,23 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
     team: Mapped["Team"] = relationship(back_populates="users")
+    vehicle_transfers: Mapped[list["VehicleTransfer"]] = relationship(
+        back_populates="transferred_by_user",
+    )
+
+
+class VehicleTransfer(Base):
+    __tablename__ = "vehicle_transfers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=False)
+    from_team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), nullable=False)
+    to_team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), nullable=False)
+    transferred_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    notes: Mapped[str] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    vehicle: Mapped[Vehicle] = relationship(back_populates="transfer_history")
+    from_team: Mapped["Team"] = relationship(foreign_keys=[from_team_id], back_populates="transfers_from")
+    to_team: Mapped["Team"] = relationship(foreign_keys=[to_team_id], back_populates="transfers_to")
+    transferred_by_user: Mapped[User] = relationship(back_populates="vehicle_transfers")

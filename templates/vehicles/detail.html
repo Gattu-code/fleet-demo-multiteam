@@ -222,6 +222,28 @@
     </div>
   </section>
 </div>
+
+<section class="mt-6 rounded-lg border border-zinc-200 bg-white p-6">
+  <h2 class="text-lg font-semibold">Transferencias</h2>
+  <div class="mt-4 space-y-3">
+    {% for transfer in vehicle.transfer_history %}
+    <article class="rounded-md border border-zinc-200 p-4">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 class="font-medium">{{ transfer.from_team.name }} &rarr; {{ transfer.to_team.name }}</h3>
+          <p class="text-sm text-zinc-600">Por {{ transfer.transferred_by_user.username }} el {{ transfer.created_at.strftime("%Y-%m-%d %H:%M") }}</p>
+        </div>
+      </div>
+      {% if transfer.notes %}
+      <p class="mt-3 whitespace-pre-line text-sm text-zinc-700">{{ transfer.notes }}</p>
+      {% endif %}
+    </article>
+    {% else %}
+    <p class="text-sm text-zinc-600">Sin transferencias registradas.</p>
+    {% endfor %}
+  </div>
+</section>
+
 <script>
   const returnIssuesCheck = document.getElementById("return_has_issues");
   const returnIssueField = document.getElementById("return_issue_files_field");

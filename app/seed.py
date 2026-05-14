@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from .auth import hash_password
 from .database import Base, SessionLocal, engine
-from .models import Loan, LoanAsset, Team, User, Vehicle
+from .models import Loan, LoanAsset, Team, User, Vehicle, VehicleTransfer
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent

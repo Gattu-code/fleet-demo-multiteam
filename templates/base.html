@@ -113,14 +113,24 @@
   </head>
   <body class="min-h-screen bg-zinc-50 text-zinc-950">
     <header class="border-b border-zinc-200 bg-white">
-      <div class="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
-        <a href="/vehicles" class="text-lg font-semibold tracking-tight">Gestión de flotas (Marketing) :: Demo</a>
+      <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4">
+        <div class="min-w-0">
+          <div class="text-lg font-semibold tracking-tight">FlotasMultimarca AS</div>
+          <div class="text-sm text-zinc-500">Inventario de vehiculos</div>
+        </div>
         <div class="flex items-center gap-3">
           {% if request.state.current_user %}
+          {% if request.state.current_user.role == "operator" %}
+          <a href="/operator/vehicles" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Panel operativo</a>
+          {% else %}
           <a href="/dashboard" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Dashboard</a>
+          <a href="/vehicles" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Inventario</a>
           <a href="/loans" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Prestamos</a>
           <a href="/operator/vehicles" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Operador</a>
+          {% if request.state.current_user.role in ["admin", "fleet_supervisor"] %}
           <a href="/vehicles/new" class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Nuevo vehiculo</a>
+          {% endif %}
+          {% endif %}
           <div class="flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm">
             <span class="font-medium">{{ request.state.current_user.username }}</span>
             <span class="text-zinc-500">({{ request.state.current_user.role }})</span>
