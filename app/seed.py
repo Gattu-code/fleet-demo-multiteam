@@ -6,7 +6,19 @@ from sqlalchemy.orm import selectinload
 
 from .auth import hash_password
 from .database import Base, SessionLocal, engine
-from .models import Loan, LoanAsset, LoanCategory, Team, TeamConfig, User, Vehicle, VehicleTransfer
+from .models import (
+    Loan,
+    LoanAsset,
+    LoanCategory,
+    LoanChecklistItem,
+    OperationalChecklist,
+    OperationalIssue,
+    Team,
+    TeamConfig,
+    User,
+    Vehicle,
+    VehicleTransfer,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -90,6 +102,15 @@ TEAM_CONFIG_DEFAULTS = {
         "default_loan_category": "Uso interno marketing",
     },
 }
+
+OPERATIONAL_CHECKLISTS = [
+    ("delivery", 1, "Documentacion del vehiculo", "Verificar placa, estado general y equipo asignado."),
+    ("delivery", 2, "Datos del receptor", "Confirmar identidad y datos de contacto del receptor."),
+    ("delivery", 3, "Evidencia de entrega", "Registrar evidencia visual y observaciones iniciales."),
+    ("return", 1, "Estado de retorno", "Revisar kilometraje, combustible y estado general."),
+    ("return", 2, "Evidencia de recepcion", "Registrar fotos o video del retorno."),
+    ("return", 3, "Novedades", "Documentar incidencias detectadas en la devolucion."),
+]
 
 
 def utc_now():
@@ -199,6 +220,59 @@ def ensure_team_config(db, team: Team, defaults: dict | None = None) -> TeamConf
     return config
 
 
+def ensure_operational_checklists(db):
+    existing = {
+        (item.kind, item.name)
+        for item in db.scalars(select(OperationalChecklist)).all()
+    }
+    for kind, sort_order, name, description in OPERATIONAL_CHECKLISTS:
+        if (kind, name) not in existing:
+            db.add(
+                OperationalChecklist(
+                    kind=kind,
+                    name=name,
+                    description=description,
+                    sort_order=sort_order,
+                    is_active=True,
+                )
+            )
+
+
+def ensure_loan_checklist_items(db, loan: Loan):
+    active_templates = db.scalars(
+        select(OperationalChecklist)
+        .where(OperationalChecklist.is_active.is_(True))
+        .order_by(OperationalChecklist.sort_order, OperationalChecklist.name)
+    ).all()
+    existing_ids = {item.checklist_id for item in loan.checklist_items}
+    for template in active_templates:
+        if template.id in existing_ids:
+            continue
+        completed = template.kind == "delivery" or (template.kind == "return" and loan.returned_at is not None)
+        db.add(
+            LoanChecklistItem(
+                loan=loan,
+                checklist_id=template.id,
+                completed=completed,
+                completed_at=loan.delivered_at if template.kind == "delivery" else loan.returned_at if completed else None,
+            )
+        )
+
+
+def ensure_operational_issues(db, loan: Loan):
+    if loan.return_has_issues and not loan.issues:
+        db.add(
+            OperationalIssue(
+                loan=loan,
+                kind="return",
+                severity="medium",
+                title="Novedad en devolucion",
+                description="La devolucion historica reporto novedades para revision.",
+                resolved=False,
+            )
+        )
+
+
 def ensure_loan_categories(db):
     existing_names = set(db.scalars(select(LoanCategory.name)).all())
     names_to_seed = list(LOAN_CATEGORY_NAMES)
@@ -280,6 +354,8 @@ def ensure_demo_teams(db):
         vehicle.team_id = teams[team_name].id
         for loan in vehicle.loans:
             loan.team_id = teams[team_name].id
+            ensure_loan_checklist_items(db, loan)
+            ensure_operational_issues(db, loan)
 
 
 def seed():
@@ -307,6 +383,7 @@ def seed():
         )
 
         ensure_loan_categories(db)
+        ensure_operational_checklists(db)
         ensure_default_users(db)
         ensure_demo_teams(db)
 
@@ -505,6 +582,7 @@ def seed():
             loan = Loan(vehicle_id=vehicle.id, **loan_data)
             db.add(loan)
             db.flush()
+            ensure_loan_checklist_items(db, loan)
 
             if loan.agreement_signed:
                 add_asset(db, loan, "agreement", agreement_path, "comodato-demo.pdf", "application/pdf")
@@ -513,6 +591,7 @@ def seed():
                 add_asset(db, loan, "return", return_path, "devolucion-demo.png", "image/png")
             if loan.return_has_issues:
                 add_asset(db, loan, "return_issue", issue_path, "novedad-demo.png", "image/png")
+                ensure_operational_issues(db, loan)
 
         active_plates = {
             item["plate"]

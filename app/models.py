@@ -70,6 +70,16 @@ class Loan(Base):
         cascade="all, delete-orphan",
         order_by="LoanAsset.created_at.desc()",
     )
+    checklist_items: Mapped[list["LoanChecklistItem"]] = relationship(
+        back_populates="loan",
+        cascade="all, delete-orphan",
+        order_by="LoanChecklistItem.created_at.asc()",
+    )
+    issues: Mapped[list["OperationalIssue"]] = relationship(
+        back_populates="loan",
+        cascade="all, delete-orphan",
+        order_by="OperationalIssue.created_at.desc()",
+    )
 
 
 class LoanAsset(Base):
@@ -84,6 +94,57 @@ class LoanAsset(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
     loan: Mapped[Loan] = relationship(back_populates="assets")
+
+
+class OperationalChecklist(Base):
+    __tablename__ = "operational_checklists"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    items: Mapped[list["LoanChecklistItem"]] = relationship(back_populates="checklist")
+
+
+class LoanChecklistItem(Base):
+    __tablename__ = "loan_checklist_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    loan_id: Mapped[int] = mapped_column(ForeignKey("loans.id"), nullable=False)
+    checklist_id: Mapped[int] = mapped_column(ForeignKey("operational_checklists.id"), nullable=False)
+    completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    completed_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=True)
+    completed_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    notes: Mapped[str] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+    loan: Mapped[Loan] = relationship(back_populates="checklist_items")
+    checklist: Mapped["OperationalChecklist"] = relationship(back_populates="items")
+    completed_by_user: Mapped["User"] = relationship()
+
+
+class OperationalIssue(Base):
+    __tablename__ = "operational_issues"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    loan_id: Mapped[int] = mapped_column(ForeignKey("loans.id"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), default="medium", nullable=False)
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=True)
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=True)
+    resolved_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+    resolved_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+
+    loan: Mapped[Loan] = relationship(back_populates="issues")
+    created_by_user: Mapped["User"] = relationship(foreign_keys=[created_by_user_id])
+    resolved_by_user: Mapped["User"] = relationship(foreign_keys=[resolved_by_user_id])
 
 
 class Team(Base):

@@ -15,7 +15,19 @@ from sqlalchemy.orm import Session, selectinload
 
 from .auth import AuthenticationRequired, get_session_user, hash_password, require_user, verify_password
 from .database import Base, SessionLocal, engine, get_db
-from .models import Loan, LoanAsset, LoanCategory, Team, TeamConfig, User, Vehicle, VehicleTransfer
+from .models import (
+    Loan,
+    LoanAsset,
+    LoanCategory,
+    LoanChecklistItem,
+    OperationalChecklist,
+    OperationalIssue,
+    Team,
+    TeamConfig,
+    User,
+    Vehicle,
+    VehicleTransfer,
+)
 from .seed import (
     ensure_default_users as seed_ensure_default_users,
     ensure_demo_teams,
@@ -210,6 +222,45 @@ def load_team_config(db: Session, team: Team | None) -> TeamConfig | None:
         .options(selectinload(TeamConfig.default_loan_category))
         .where(TeamConfig.team_id == team.id)
     )
+
+
+def load_operational_checklists(db: Session, kind: str):
+    return db.scalars(
+        select(OperationalChecklist)
+        .where(OperationalChecklist.kind == kind, OperationalChecklist.is_active.is_(True))
+        .order_by(OperationalChecklist.sort_order, OperationalChecklist.name)
+    ).all()
+
+
+def seed_loan_checklist_items(db: Session, loan: Loan):
+    existing_checklist_ids = {item.checklist_id for item in loan.checklist_items}
+    active_templates = db.scalars(
+        select(OperationalChecklist)
+        .where(OperationalChecklist.is_active.is_(True))
+        .order_by(OperationalChecklist.sort_order, OperationalChecklist.name)
+    ).all()
+    for template in active_templates:
+        if template.id in existing_checklist_ids:
+            continue
+        completed = template.kind == "delivery" or (template.kind == "return" and loan.returned_at is not None)
+        db.add(
+            LoanChecklistItem(
+                loan_id=loan.id,
+                checklist_id=template.id,
+                completed=completed,
+                notes=None,
+                completed_at=loan.delivered_at if completed and template.kind == "delivery" else loan.returned_at if completed else None,
+            )
+        )
+
+
+def load_loan_operational_context(db: Session, loan: Loan):
+    return {
+        "delivery_checklists": load_operational_checklists(db, "delivery"),
+        "return_checklists": load_operational_checklists(db, "return"),
+        "loan_checklist_items": loan.checklist_items,
+        "loan_issues": loan.issues,
+    }
 
 
 def count_rows(db: Session, model):
@@ -1204,7 +1255,13 @@ def loan_detail(loan_id: int, request: Request, db: Session = Depends(get_db)):
     current_user = request.state.current_user
     loan = db.scalar(
         select(Loan)
-        .options(selectinload(Loan.vehicle), selectinload(Loan.assets), selectinload(Loan.team))
+        .options(
+            selectinload(Loan.vehicle),
+            selectinload(Loan.assets),
+            selectinload(Loan.team),
+            selectinload(Loan.checklist_items).selectinload(LoanChecklistItem.checklist),
+            selectinload(Loan.issues),
+        )
         .where(Loan.id == loan_id)
     )
     if loan is None:
@@ -1226,6 +1283,7 @@ def loan_detail(loan_id: int, request: Request, db: Session = Depends(get_db)):
             "row": row,
             "loan_categories": load_loan_categories(db),
             "historical_team_name": loan.team.name if loan.team else "Sin equipo",
+            "operational_checklists": load_loan_operational_context(db, loan),
         },
     )
 
@@ -1269,9 +1327,9 @@ def operator_vehicle_detail(
         .options(
             selectinload(Vehicle.loans).selectinload(Loan.assets),
             selectinload(Vehicle.loans).selectinload(Loan.team),
-            selectinload(Vehicle.team)
-            .selectinload(Team.config)
-            .selectinload(TeamConfig.default_loan_category),
+            selectinload(Vehicle.loans).selectinload(Loan.checklist_items).selectinload(LoanChecklistItem.checklist),
+            selectinload(Vehicle.loans).selectinload(Loan.issues),
+            selectinload(Vehicle.team).selectinload(Team.config).selectinload(TeamConfig.default_loan_category),
         )
         .where(Vehicle.id == vehicle_id)
     )
@@ -1287,6 +1345,9 @@ def operator_vehicle_detail(
     default_category_name = None
     if team_config and team_config.default_loan_category and team_config.default_loan_category.is_active:
         default_category_name = team_config.default_loan_category.name
+    active_checklist_item_map = {
+        item.checklist_id: item for item in active_loan.checklist_items
+    } if active_loan else {}
     return templates.TemplateResponse(
         "operator/detail.html",
         {
@@ -1296,6 +1357,8 @@ def operator_vehicle_detail(
             "historical_team_name": active_loan.team.name if active_loan and active_loan.team else "Sin equipo",
             "team_config": team_config,
             "team_default_loan_category_name": default_category_name,
+            "operational_checklists": load_loan_operational_context(db, active_loan) if active_loan else {"delivery_checklists": [], "return_checklists": [], "loan_checklist_items": [], "loan_issues": []},
+            "active_checklist_item_map": active_checklist_item_map,
         },
     )
 
@@ -1454,6 +1517,8 @@ def vehicle_detail(
         select(Vehicle)
         .options(
             selectinload(Vehicle.loans).selectinload(Loan.assets),
+            selectinload(Vehicle.loans).selectinload(Loan.checklist_items).selectinload(LoanChecklistItem.checklist),
+            selectinload(Vehicle.loans).selectinload(Loan.issues),
             selectinload(Vehicle.transfer_history).selectinload(VehicleTransfer.from_team),
             selectinload(Vehicle.transfer_history).selectinload(VehicleTransfer.to_team),
             selectinload(Vehicle.transfer_history).selectinload(VehicleTransfer.transferred_by_user),
@@ -1482,6 +1547,9 @@ def vehicle_detail(
     default_category_name = None
     if team_config and team_config.default_loan_category and team_config.default_loan_category.is_active:
         default_category_name = team_config.default_loan_category.name
+    active_checklist_item_map = {
+        item.checklist_id: item for item in active_loan.checklist_items
+    } if active_loan else {}
     return templates.TemplateResponse(
         "vehicles/detail.html",
         {
@@ -1493,6 +1561,8 @@ def vehicle_detail(
             "can_transfer": can_transfer_vehicle(current_user, vehicle),
             "team_config": team_config,
             "team_default_loan_category_name": default_category_name,
+            "operational_checklists": load_loan_operational_context(db, active_loan) if active_loan else {"delivery_checklists": [], "return_checklists": [], "loan_checklist_items": [], "loan_issues": []},
+            "active_checklist_item_map": active_checklist_item_map,
         },
     )
 
@@ -1642,6 +1712,7 @@ def deliver_vehicle(
     vehicle.status = "assigned"
     db.add(loan)
     db.flush()
+    seed_loan_checklist_items(db, loan)
     add_loan_assets(db, loan, delivery_files, "delivery")
     add_loan_assets(db, loan, [agreement_file] if agreement_file else [], "agreement")
     db.commit()
