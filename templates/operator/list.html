@@ -51,7 +51,7 @@
           {% endif %}
         </td>
         <td class="px-4 py-3 text-right">
-          <a href="/operator/vehicles/{{ vehicle.id }}" class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Abrir</a>
+          <a href="/operator/vehicles/{{ vehicle.id }}{% if request.query_params.get('team_id') %}?team_id={{ request.query_params.get('team_id') }}{% endif %}" class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Abrir</a>
         </td>
       </tr>
       {% endfor %}

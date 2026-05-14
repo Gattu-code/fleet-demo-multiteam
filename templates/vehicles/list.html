@@ -7,20 +7,19 @@
     <h1 class="text-2xl font-semibold tracking-tight">Vehiculos</h1>
     <p class="mt-1 text-sm text-zinc-600">Inventario, asignacion actual y estado de comodatos.</p>
   </div>
-  <a href="/vehicles/new" class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Nuevo vehiculo</a>
+  <a href="/vehicles/new{% if selected_team_id %}?team_id={{ selected_team_id }}{% endif %}" class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Nuevo vehiculo</a>
 </div>
 
 <form method="get" action="/vehicles" class="mb-5 flex flex-wrap items-end gap-3 rounded-lg border border-zinc-200 bg-white p-4">
   <label class="field min-w-56">
     <span>Equipo</span>
-    <select name="team_id">
-      <option value="" {% if not selected_team_id %}selected{% endif %}>Todos</option>
+    <select name="team_id" onchange="this.form.submit()">
+      <option value="" {% if not request.query_params.get("team_id", selected_team_id) %}selected{% endif %}>Todos</option>
       {% for team in teams %}
-      <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+      <option value="{{ team.id }}" {% if request.query_params.get("team_id", selected_team_id ~ "") == (team.id ~ "") %}selected{% endif %}>{{ team.name }}</option>
       {% endfor %}
     </select>
   </label>
-  <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Aplicar</button>
 </form>
 
 {% if vehicle_rows %}
@@ -102,7 +101,7 @@
           {% endif %}
         </td>
         <td class="px-4 py-3 text-right">
-          <a class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 hover:bg-zinc-100" href="/vehicles/{{ vehicle.id }}" title="Ver vehiculo" aria-label="Ver vehiculo">
+          <a class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 hover:bg-zinc-100" href="/vehicles/{{ vehicle.id }}{% if selected_team_id %}?team_id={{ selected_team_id }}{% endif %}" title="Ver vehiculo" aria-label="Ver vehiculo">
             <svg viewBox="0 0 24 24" class="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
               <circle cx="12" cy="12" r="3"></circle>
@@ -118,7 +117,7 @@
 <div class="rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center">
   <h2 class="text-lg font-medium">Aun no hay vehiculos</h2>
   <p class="mt-2 text-sm text-zinc-600">Crea el primer registro para iniciar el demo.</p>
-  <a href="/vehicles/new" class="mt-5 inline-flex rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Crear vehiculo</a>
+  <a href="/vehicles/new{% if selected_team_id %}?team_id={{ selected_team_id }}{% endif %}" class="mt-5 inline-flex rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Crear vehiculo</a>
 </div>
 {% endif %}
 {% endblock %}

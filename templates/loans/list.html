@@ -18,40 +18,39 @@
   {% endif %}
   <label class="field">
     <span>Estado</span>
-    <select name="status">
-      <option value="" {% if not selected_status %}selected{% endif %}>Todos</option>
-      <option value="active" {% if selected_status == "active" %}selected{% endif %}>Activos</option>
-      <option value="returned" {% if selected_status == "returned" %}selected{% endif %}>Devueltos</option>
-      <option value="issues" {% if selected_status == "issues" %}selected{% endif %}>Con novedades</option>
+    <select name="status" onchange="this.form.submit()">
+      <option value="" {% if not request.query_params.get("status", selected_status) %}selected{% endif %}>Todos</option>
+      <option value="active" {% if request.query_params.get("status", selected_status) == "active" %}selected{% endif %}>Activos</option>
+      <option value="returned" {% if request.query_params.get("status", selected_status) == "returned" %}selected{% endif %}>Devueltos</option>
+      <option value="issues" {% if request.query_params.get("status", selected_status) == "issues" %}selected{% endif %}>Con novedades</option>
     </select>
   </label>
   <label class="field">
     <span>Categoria</span>
-    <select name="category">
-      <option value="" {% if not selected_category %}selected{% endif %}>Todas</option>
+    <select name="category" onchange="this.form.submit()">
+      <option value="" {% if not request.query_params.get("category", selected_category) %}selected{% endif %}>Todas</option>
       {% for category in loan_categories %}
-      <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category }}</option>
+      <option value="{{ category }}" {% if request.query_params.get("category", selected_category) == category %}selected{% endif %}>{{ category }}</option>
       {% endfor %}
     </select>
   </label>
   <label class="field">
     <span>Comodato</span>
-    <select name="agreement">
-      <option value="" {% if not selected_agreement %}selected{% endif %}>Todos</option>
-      <option value="missing" {% if selected_agreement == "missing" %}selected{% endif %}>Con faltante</option>
+    <select name="agreement" onchange="this.form.submit()">
+      <option value="" {% if not request.query_params.get("agreement", selected_agreement) %}selected{% endif %}>Todos</option>
+      <option value="missing" {% if request.query_params.get("agreement", selected_agreement) == "missing" %}selected{% endif %}>Con faltante</option>
     </select>
   </label>
   <label class="field">
     <span>Equipo</span>
-    <select name="team_id">
-      <option value="" {% if not selected_team_id %}selected{% endif %}>Todos</option>
+    <select name="team_id" onchange="this.form.submit()">
+      <option value="" {% if not request.query_params.get("team_id", selected_team_id) %}selected{% endif %}>Todos</option>
       {% for team in teams %}
-      <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+      <option value="{{ team.id }}" {% if request.query_params.get("team_id", selected_team_id ~ "") == (team.id ~ "") %}selected{% endif %}>{{ team.name }}</option>
       {% endfor %}
     </select>
   </label>
   <div class="flex items-end gap-2">
-    <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Filtrar</button>
     <a href="/loans" class="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100">Limpiar</a>
   </div>
 </form>
@@ -134,7 +133,7 @@
                 <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
               </svg>
             </button>
-            <a href="/loans/{{ loan.id }}" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 hover:bg-zinc-100" title="Ver prestamo" aria-label="Ver prestamo">
+            <a href="/loans/{{ loan.id }}{% if selected_team_id %}?team_id={{ selected_team_id }}{% endif %}" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 hover:bg-zinc-100" title="Ver prestamo" aria-label="Ver prestamo">
               <svg viewBox="0 0 24 24" class="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
                 <circle cx="12" cy="12" r="3"></circle>

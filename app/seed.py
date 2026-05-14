@@ -13,12 +13,30 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = BASE_DIR / "uploads"
 
 DEMO_USERS = [
-    {"username": "admin", "role": "admin", "password": "demo123", "team_name": "Marketing Demo"},
-    {"username": "fleet_supervisor", "role": "fleet_supervisor", "password": "demo123", "team_name": "Marketing Demo"},
-    {"username": "coordinator", "role": "coordinator", "password": "demo123", "team_name": "Marketing Demo"},
+    {"username": "admin", "role": "admin", "password": "demo123", "team_name": None},
+    {"username": "fleet_supervisor", "role": "fleet_supervisor", "password": "demo123", "team_name": None},
+    {"username": "coordinator", "role": "coordinator", "password": "demo123", "team_name": "Marketing Volvo"},
     {"username": "operator", "role": "operator", "password": "demo123", "team_name": "Operaciones Demo"},
-    {"username": "viewer", "role": "viewer", "password": "demo123", "team_name": "Operaciones Demo"},
+    {"username": "viewer", "role": "viewer", "password": "demo123", "team_name": "Administrativo"},
 ]
+
+DEMO_TEAMS = [
+    "Marketing Volvo",
+    "Marketing Hyundai",
+    "Marketing Peugeot",
+    "Comercial A",
+    "Operaciones Demo",
+    "Administrativo",
+]
+
+DEMO_VEHICLE_TEAMS = {
+    "VOL-101": "Marketing Volvo",
+    "VOL-202": "Marketing Hyundai",
+    "VOL-303": "Marketing Peugeot",
+    "VOL-404": "Comercial A",
+    "VOL-505": "Operaciones Demo",
+    "VOL-606": "Administrativo",
+}
 
 
 def utc_now():
@@ -101,7 +119,7 @@ def get_or_create_vehicle(db, data):
         db.flush()
         return vehicle
 
-    if data.get("team_id") is not None and vehicle.team_id is None:
+    if data.get("team_id") is not None:
         vehicle.team_id = data["team_id"]
     vehicle.brand = data["brand"]
     vehicle.model = data["model"]
@@ -131,7 +149,7 @@ def add_asset(db, loan, category, path, filename, content_type):
 def ensure_default_users(db):
     for user_data in DEMO_USERS:
         user = db.scalar(select(User).where(User.username == user_data["username"]))
-        team = ensure_team(db, user_data["team_name"])
+        team = ensure_team(db, user_data["team_name"]) if user_data["team_name"] else None
         password_hash = hash_password(user_data["password"])
         if user is None:
             db.add(
@@ -150,15 +168,15 @@ def ensure_default_users(db):
         user.is_active = True
 
 
-def ensure_demo_team_split(db):
-    operations_team = ensure_team(db, "Operaciones Demo")
-
-    operations_plates = {"VOL-505", "VOL-606"}
-    vehicles = db.scalars(select(Vehicle).where(Vehicle.plate.in_(operations_plates))).all()
-    for vehicle in vehicles:
-        vehicle.team_id = operations_team.id
+def ensure_demo_teams(db):
+    teams = {name: ensure_team(db, name) for name in DEMO_TEAMS}
+    for plate, team_name in DEMO_VEHICLE_TEAMS.items():
+        vehicle = db.scalar(select(Vehicle).where(Vehicle.plate == plate))
+        if vehicle is None:
+            continue
+        vehicle.team_id = teams[team_name].id
         for loan in vehicle.loans:
-            loan.team_id = operations_team.id
+            loan.team_id = teams[team_name].id
 
 
 def seed():
@@ -167,6 +185,8 @@ def seed():
 
     db = SessionLocal()
     try:
+        for team_name in DEMO_TEAMS:
+            ensure_team(db, team_name)
         default_team = db.scalar(select(Team).where(Team.name == "Marketing Demo"))
         if default_team is None:
             default_team = Team(name="Marketing Demo")
@@ -174,7 +194,7 @@ def seed():
             db.flush()
 
         ensure_default_users(db)
-        ensure_demo_team_split(db)
+        ensure_demo_teams(db)
 
         agreement_path = first_upload("agreement-*")
         delivery_path = first_upload("delivery-*")
@@ -202,29 +222,29 @@ def seed():
                 "status": "available",
                 "has_open_issue": False,
                 "reference_image_path": vehicle_image_path,
-                "team_id": default_team.id,
+                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-101"])).id,
             },
             {
-                "brand": "Volvo",
-                "model": "EX40",
+                "brand": "Hyundai",
+                "model": "IONIQ 5",
                 "year": 2025,
                 "plate": "VOL-202",
-                "color": "Onyx Black",
+                "color": "Gravity Gold",
                 "status": "assigned",
                 "has_open_issue": False,
                 "reference_image_path": vehicle_image_path,
-                "team_id": default_team.id,
+                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-202"])).id,
             },
             {
-                "brand": "Volvo",
-                "model": "EC40",
+                "brand": "Peugeot",
+                "model": "e-2008",
                 "year": 2024,
                 "plate": "VOL-303",
-                "color": "Fjord Blue",
+                "color": "Vertigo Blue",
                 "status": "available",
                 "has_open_issue": True,
                 "reference_image_path": vehicle_image_path,
-                "team_id": default_team.id,
+                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-303"])).id,
             },
             {
                 "brand": "Volvo",
@@ -235,7 +255,7 @@ def seed():
                 "status": "available",
                 "has_open_issue": True,
                 "reference_image_path": vehicle_image_path,
-                "team_id": default_team.id,
+                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-404"])).id,
             },
             {
                 "brand": "Volvo",
@@ -246,18 +266,18 @@ def seed():
                 "status": "available",
                 "has_open_issue": False,
                 "reference_image_path": vehicle_image_path,
-                "team_id": default_team.id,
+                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-505"])).id,
             },
             {
-                "brand": "Volvo",
-                "model": "XC90",
+                "brand": "Peugeot",
+                "model": "3008",
                 "year": 2025,
                 "plate": "VOL-606",
-                "color": "Denim Blue",
+                "color": "Pearl White",
                 "status": "available",
                 "has_open_issue": False,
                 "reference_image_path": vehicle_image_path,
-                "team_id": default_team.id,
+                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-606"])).id,
             },
         ]
 
@@ -367,7 +387,7 @@ def seed():
         for item in demo_loans:
             loan_data = item.copy()
             vehicle = created[loan_data.pop("plate")]
-            loan_data["team_id"] = vehicle.team_id or default_team.id
+            loan_data["team_id"] = vehicle.team_id
             loan = Loan(vehicle_id=vehicle.id, **loan_data)
             db.add(loan)
             db.flush()

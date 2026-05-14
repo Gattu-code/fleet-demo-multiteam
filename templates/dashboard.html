@@ -10,47 +10,46 @@
 <form method="get" action="/dashboard" class="mb-5 flex flex-wrap items-end gap-3 rounded-lg border border-zinc-200 bg-white p-4">
   <label class="field min-w-56">
     <span>Periodo</span>
-    <select name="period">
-      <option value="all" {% if selected_period == "all" %}selected{% endif %}>Todo</option>
-      <option value="month" {% if selected_period == "month" %}selected{% endif %}>Mes actual</option>
-      <option value="last_month" {% if selected_period == "last_month" %}selected{% endif %}>Mes pasado</option>
-      <option value="quarter" {% if selected_period == "quarter" %}selected{% endif %}>Trimestre actual</option>
-      <option value="last_quarter" {% if selected_period == "last_quarter" %}selected{% endif %}>Trimestre pasado</option>
-      <option value="year" {% if selected_period == "year" %}selected{% endif %}>Anio actual</option>
-      <option value="last_year" {% if selected_period == "last_year" %}selected{% endif %}>Anio anterior</option>
+    <select name="period" onchange="this.form.submit()">
+      <option value="all" {% if request.query_params.get("period", selected_period) == "all" %}selected{% endif %}>Todo</option>
+      <option value="month" {% if request.query_params.get("period", selected_period) == "month" %}selected{% endif %}>Mes actual</option>
+      <option value="last_month" {% if request.query_params.get("period", selected_period) == "last_month" %}selected{% endif %}>Mes pasado</option>
+      <option value="quarter" {% if request.query_params.get("period", selected_period) == "quarter" %}selected{% endif %}>Trimestre actual</option>
+      <option value="last_quarter" {% if request.query_params.get("period", selected_period) == "last_quarter" %}selected{% endif %}>Trimestre pasado</option>
+      <option value="year" {% if request.query_params.get("period", selected_period) == "year" %}selected{% endif %}>Anio actual</option>
+      <option value="last_year" {% if request.query_params.get("period", selected_period) == "last_year" %}selected{% endif %}>Anio anterior</option>
     </select>
   </label>
   <label class="field min-w-56">
     <span>Equipo</span>
-    <select name="team_id">
-      <option value="" {% if not selected_team_id %}selected{% endif %}>Todos</option>
+    <select name="team_id" onchange="this.form.submit()">
+      <option value="" {% if not request.query_params.get("team_id", selected_team_id) %}selected{% endif %}>Todos</option>
       {% for team in teams %}
-      <option value="{{ team.id }}" {% if selected_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+      <option value="{{ team.id }}" {% if request.query_params.get("team_id", selected_team_id ~ "") == (team.id ~ "") %}selected{% endif %}>{{ team.name }}</option>
       {% endfor %}
     </select>
   </label>
-  <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Aplicar</button>
 </form>
 
 <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-  <a href="/loans" class="rounded-lg border border-zinc-200 bg-white p-4 hover:bg-zinc-50">
+  <a href="/loans{% if selected_team_id %}?team_id={{ selected_team_id }}{% endif %}" class="rounded-lg border border-zinc-200 bg-white p-4 hover:bg-zinc-50">
     <p class="text-sm text-zinc-500">Prestamos</p>
     <p class="mt-2 text-center text-2xl font-semibold">{{ total_loans }}</p>
   </a>
-  <a href="/loans?status=active" class="rounded-lg border border-zinc-200 bg-white p-4 hover:bg-zinc-50">
+  <a href="/loans?status=active{% if selected_team_id %}&team_id={{ selected_team_id }}{% endif %}" class="rounded-lg border border-zinc-200 bg-white p-4 hover:bg-zinc-50">
     <p class="text-sm text-zinc-500">Activos</p>
     <p class="mt-2 text-center text-2xl font-semibold">{{ active_loans }}</p>
   </a>
-  <a href="/vehicles" class="rounded-lg border border-zinc-200 bg-white p-4 hover:bg-zinc-50">
+  <a href="/vehicles{% if selected_team_id %}?team_id={{ selected_team_id }}{% endif %}" class="rounded-lg border border-zinc-200 bg-white p-4 hover:bg-zinc-50">
     <p class="text-sm text-zinc-500">Disponibles / asignados</p>
     <p class="mt-2 text-center text-2xl font-semibold">{{ available_vehicles }} / {{ assigned_vehicles }}</p>
     <p class="mt-1 text-xs text-zinc-500">Flota total: {{ total_vehicles }}{% if retired_vehicles %} / retirados: {{ retired_vehicles }}{% endif %}</p>
   </a>
-  <a href="/loans?status=issues" class="rounded-lg border border-zinc-200 bg-white p-4 hover:bg-zinc-50">
+  <a href="/loans?status=issues{% if selected_team_id %}&team_id={{ selected_team_id }}{% endif %}" class="rounded-lg border border-zinc-200 bg-white p-4 hover:bg-zinc-50">
     <p class="text-sm text-zinc-500">Con novedades</p>
     <p class="mt-2 text-center text-2xl font-semibold">{{ issue_rate }}%</p>
   </a>
-  <a href="/loans?agreement=missing" class="rounded-lg border border-amber-200 bg-amber-50 p-4 hover:bg-amber-100">
+  <a href="/loans?agreement=missing{% if selected_team_id %}&team_id={{ selected_team_id }}{% endif %}" class="rounded-lg border border-amber-200 bg-amber-50 p-4 hover:bg-amber-100">
     <p class="text-sm text-amber-700">Faltan comodatos</p>
     <p class="mt-2 text-center text-2xl font-semibold text-amber-900">{{ missing_agreements }}</p>
     <p class="mt-1 text-xs text-amber-700">{{ missing_agreement_rate }}% con faltante</p>
@@ -72,7 +71,7 @@
     <div class="mt-4 space-y-3">
       {% for label, stats in top_vehicles %}
       <div class="grid gap-2 text-sm sm:grid-cols-[1fr_auto_auto_auto]">
-        <a href="/loans?vehicle_id={{ stats.vehicle_id }}" class="font-medium underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-900">{{ label }}</a>
+        <a href="/loans?vehicle_id={{ stats.vehicle_id }}{% if selected_team_id %}&team_id={{ selected_team_id }}{% endif %}" class="font-medium underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-900">{{ label }}</a>
         <span>{{ stats.count }} prestamos</span>
         <span>{{ stats.days }} dias</span>
         <span>{{ stats.km }} km</span>

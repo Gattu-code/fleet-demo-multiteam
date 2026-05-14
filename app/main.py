@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, selectinload
 from .auth import AuthenticationRequired, get_session_user, require_user, verify_password
 from .database import Base, SessionLocal, engine, get_db
 from .models import Loan, LoanAsset, Team, User, Vehicle
-from .seed import ensure_default_users as seed_ensure_default_users, ensure_demo_team_split
+from .seed import ensure_default_users as seed_ensure_default_users, ensure_demo_teams
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -103,7 +103,7 @@ def ensure_demo_users():
     db = SessionLocal()
     try:
         seed_ensure_default_users(db)
-        ensure_demo_team_split(db)
+        ensure_demo_teams(db)
         db.commit()
     finally:
         db.close()

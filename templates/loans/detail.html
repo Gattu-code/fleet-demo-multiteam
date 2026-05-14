@@ -2,6 +2,7 @@
 {% block title %}Prestamo {{ row.loan.id }} | Gestión de flotas (Marketing) :: Demo{% endblock %}
 
 {% block content %}
+{% set team_id = request.query_params.get("team_id") %}
 {% set loan = row.loan %}
 {% set vehicle = loan.vehicle %}
 {% set agreement_asset = row.agreement_asset %}
@@ -9,7 +10,7 @@
 
 <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
   <div>
-    <a href="/loans" class="text-sm text-zinc-600 hover:text-zinc-950">Volver a prestamos</a>
+    <a href="/loans{% if team_id %}?team_id={{ team_id }}{% endif %}" class="text-sm text-zinc-600 hover:text-zinc-950">Volver a prestamos</a>
     <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ loan.borrower_name }}</h1>
     <p class="mt-1 text-sm text-zinc-600">{{ vehicle.brand }} {{ vehicle.model }} / {{ vehicle.plate }}</p>
   </div>
