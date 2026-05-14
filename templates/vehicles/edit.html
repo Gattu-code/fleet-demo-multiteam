@@ -7,10 +7,32 @@
   <h1 class="mt-2 text-2xl font-semibold tracking-tight">Editar vehiculo</h1>
   <p class="mt-1 text-sm text-zinc-600">{{ vehicle.brand }} {{ vehicle.model }} / {{ vehicle.plate }}</p>
 
+  {% if team_config %}
+  <section class="mt-6 rounded-lg border border-zinc-200 bg-white p-4">
+    <h2 class="text-sm font-semibold uppercase text-zinc-500">Configuracion del equipo</h2>
+    <div class="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+      <span class="rounded-full {% if team_config.allows_transfers %}bg-emerald-100 text-emerald-700{% else %}bg-rose-100 text-rose-700{% endif %} px-2 py-1">
+        Transferencias {% if team_config.allows_transfers %}permitidas{% else %}bloqueadas{% endif %}
+      </span>
+      <span class="rounded-full {% if team_config.requires_delivery_photos %}bg-amber-100 text-amber-800{% else %}bg-zinc-100 text-zinc-700{% endif %} px-2 py-1">
+        Fotos entrega {% if team_config.requires_delivery_photos %}requeridas{% else %}opcionales{% endif %}
+      </span>
+      <span class="rounded-full {% if team_config.requires_return_photos %}bg-amber-100 text-amber-800{% else %}bg-zinc-100 text-zinc-700{% endif %} px-2 py-1">
+        Fotos devolucion {% if team_config.requires_return_photos %}requeridas{% else %}opcionales{% endif %}
+      </span>
+      <span class="rounded-full {% if team_default_loan_category_name %}bg-sky-100 text-sky-700{% else %}bg-zinc-100 text-zinc-700{% endif %} px-2 py-1">
+        Categoria por defecto {% if team_default_loan_category_name %}{{ team_default_loan_category_name }}{% else %}sin definir{% endif %}
+      </span>
+    </div>
+  </section>
+  {% endif %}
+
   {% if request.query_params.get("transfer_error") %}
   <section class="mt-6 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
     {% if request.query_params.get("transfer_error") == "active_loan" %}
     No se puede transferir este vehiculo porque tiene un prestamo activo.
+    {% elif request.query_params.get("transfer_error") == "team_blocked" %}
+    No se puede transferir este vehiculo porque su equipo actual no permite transferencias.
     {% elif request.query_params.get("transfer_error") == "forbidden" %}
     No tienes permiso para transferir este vehiculo.
     {% elif request.query_params.get("transfer_error") == "invalid_team" %}
@@ -99,13 +121,17 @@
         </div>
         <div>
           <dt class="text-zinc-500">Condicion</dt>
-          <dd class="text-zinc-700">Se bloquea automaticamente si tiene prestamo activo</dd>
+          <dd class="text-zinc-700">Se bloquea automaticamente si tiene prestamo activo o si el equipo no permite transferencias</dd>
         </div>
       </dl>
     </div>
     {% if active_loan %}
     <div class="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
       No es posible transferir este vehiculo porque tiene un prestamo activo.
+    </div>
+    {% elif team_config and not team_config.allows_transfers %}
+    <div class="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      No es posible transferir este vehiculo porque su equipo actual no permite transferencias.
     </div>
     {% else %}
     <form action="/vehicles/{{ vehicle.id }}/transfer{% if request.query_params.get('team_id') %}?team_id={{ request.query_params.get('team_id') }}{% endif %}" method="post" class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] lg:items-end">

@@ -97,6 +97,12 @@ class Team(Base):
     vehicles: Mapped[list[Vehicle]] = relationship(back_populates="team")
     loans: Mapped[list[Loan]] = relationship(back_populates="team")
     users: Mapped[list["User"]] = relationship(back_populates="team")
+    config: Mapped["TeamConfig"] = relationship(
+        back_populates="team",
+        cascade="all, delete-orphan",
+        single_parent=True,
+        uselist=False,
+    )
     transfers_from: Mapped[list["VehicleTransfer"]] = relationship(
         back_populates="from_team",
         foreign_keys="VehicleTransfer.from_team_id",
@@ -114,6 +120,22 @@ class LoanCategory(Base):
     name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+
+class TeamConfig(Base):
+    __tablename__ = "team_configs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), unique=True, nullable=False)
+    allows_transfers: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    requires_delivery_photos: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    requires_return_photos: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    default_loan_category_id: Mapped[int] = mapped_column(ForeignKey("loan_categories.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
+
+    team: Mapped["Team"] = relationship(back_populates="config")
+    default_loan_category: Mapped["LoanCategory"] = relationship(foreign_keys=[default_loan_category_id])
 
 
 class User(Base):

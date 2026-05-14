@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from .auth import hash_password
 from .database import Base, SessionLocal, engine
-from .models import Loan, LoanAsset, LoanCategory, Team, User, Vehicle, VehicleTransfer
+from .models import Loan, LoanAsset, LoanCategory, Team, TeamConfig, User, Vehicle, VehicleTransfer
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -50,6 +50,45 @@ DEMO_VEHICLE_TEAMS = {
     "VOL-404": "Comercial A",
     "VOL-505": "Operaciones Demo",
     "VOL-606": "Administrativo",
+}
+
+TEAM_CONFIG_DEFAULTS = {
+    "Marketing Volvo": {
+        "allows_transfers": True,
+        "requires_delivery_photos": True,
+        "requires_return_photos": True,
+        "default_loan_category": "Evento / activacion",
+    },
+    "Marketing Hyundai": {
+        "allows_transfers": True,
+        "requires_delivery_photos": True,
+        "requires_return_photos": False,
+        "default_loan_category": "Produccion de contenido",
+    },
+    "Marketing Peugeot": {
+        "allows_transfers": True,
+        "requires_delivery_photos": False,
+        "requires_return_photos": True,
+        "default_loan_category": "Prensa / medios",
+    },
+    "Comercial A": {
+        "allows_transfers": True,
+        "requires_delivery_photos": False,
+        "requires_return_photos": False,
+        "default_loan_category": None,
+    },
+    "Operaciones Demo": {
+        "allows_transfers": False,
+        "requires_delivery_photos": True,
+        "requires_return_photos": True,
+        "default_loan_category": "Logistica / traslado",
+    },
+    "Administrativo": {
+        "allows_transfers": True,
+        "requires_delivery_photos": False,
+        "requires_return_photos": False,
+        "default_loan_category": "Uso interno marketing",
+    },
 }
 
 
@@ -141,6 +180,25 @@ def ensure_team(db, name: str) -> Team:
     return team
 
 
+def ensure_team_config(db, team: Team, defaults: dict | None = None) -> TeamConfig:
+    config = db.scalar(select(TeamConfig).where(TeamConfig.team_id == team.id))
+    if config is None:
+        config = TeamConfig(team_id=team.id)
+        db.add(config)
+        db.flush()
+    defaults = defaults or {}
+    config.allows_transfers = defaults.get("allows_transfers", True)
+    config.requires_delivery_photos = defaults.get("requires_delivery_photos", False)
+    config.requires_return_photos = defaults.get("requires_return_photos", False)
+    default_category_name = defaults.get("default_loan_category")
+    if default_category_name:
+        category = db.scalar(select(LoanCategory).where(LoanCategory.name == default_category_name))
+        config.default_loan_category_id = category.id if category else None
+    else:
+        config.default_loan_category_id = None
+    return config
+
+
 def ensure_loan_categories(db):
     existing_names = set(db.scalars(select(LoanCategory.name)).all())
     names_to_seed = list(LOAN_CATEGORY_NAMES)
@@ -213,6 +271,8 @@ def ensure_default_users(db):
 
 def ensure_demo_teams(db):
     teams = {name: ensure_team(db, name) for name in DEMO_TEAMS}
+    for team_name, defaults in TEAM_CONFIG_DEFAULTS.items():
+        ensure_team_config(db, teams[team_name], defaults)
     for plate, team_name in DEMO_VEHICLE_TEAMS.items():
         vehicle = db.scalar(select(Vehicle).where(Vehicle.plate == plate))
         if vehicle is None:
@@ -235,6 +295,16 @@ def seed():
             default_team = Team(name="Marketing Demo")
             db.add(default_team)
             db.flush()
+        ensure_team_config(
+            db,
+            default_team,
+            {
+                "allows_transfers": True,
+                "requires_delivery_photos": False,
+                "requires_return_photos": False,
+                "default_loan_category": None,
+            },
+        )
 
         ensure_loan_categories(db)
         ensure_default_users(db)

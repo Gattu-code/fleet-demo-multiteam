@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{% if user %}Editar usuario{% else %}Nuevo usuario{% endif %} | Gestion de flotas (Marketing) :: Demo{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <a href="/admin/users" class="text-sm text-zinc-600 hover:text-zinc-950">Volver a usuarios</a>
+  <h1 class="mt-2 text-2xl font-semibold tracking-tight">{% if user %}Editar usuario{% else %}Nuevo usuario{% endif %}</h1>
+  <p class="mt-1 text-sm text-zinc-600">Administracion basica de cuentas para el sistema.</p>
+</div>
+
+<section class="rounded-lg border border-zinc-200 bg-white p-6">
+  <form action="{% if user %}/admin/users/{{ user.id }}{% else %}/admin/users{% endif %}" method="post" class="grid gap-4">
+    <div class="grid gap-4 md:grid-cols-2">
+      <label class="field">
+        <span>Username</span>
+        <input name="username" value="{{ user.username if user else '' }}" required>
+      </label>
+
+      <label class="field">
+        <span>Rol</span>
+        <select name="role" required>
+          <option value="" {% if not user %}selected{% endif %}>Selecciona un rol</option>
+          <option value="admin" {% if user and user.role == 'admin' %}selected{% endif %}>admin</option>
+          <option value="fleet_supervisor" {% if user and user.role == 'fleet_supervisor' %}selected{% endif %}>fleet_supervisor</option>
+          <option value="coordinator" {% if user and user.role == 'coordinator' %}selected{% endif %}>coordinator</option>
+          <option value="operator" {% if user and user.role == 'operator' %}selected{% endif %}>operator</option>
+          <option value="viewer" {% if user and user.role == 'viewer' %}selected{% endif %}>viewer</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="grid gap-4 md:grid-cols-2">
+      <label class="field">
+        <span>Equipo</span>
+        <select name="team_id">
+          <option value="" {% if not user or not user.team_id %}selected{% endif %}>Sin equipo</option>
+          {% for team in teams %}
+          <option value="{{ team.id }}" {% if user and user.team_id == team.id %}selected{% endif %}>{{ team.name }}{% if not team.is_active %} (inactivo){% endif %}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="flex items-end gap-2 text-sm font-medium">
+        <input type="checkbox" name="is_active" value="true" {% if not user or user.is_active %}checked{% endif %} class="h-4 w-4 rounded border-zinc-300">
+        Activo
+      </label>
+    </div>
+
+    {% if not user %}
+    <label class="field max-w-xl">
+      <span>Contrasena inicial</span>
+      <input name="password" type="password" required>
+    </label>
+    <p class="text-sm text-zinc-600">La contrasena inicial puede ser resetada luego desde el listado.</p>
+    {% else %}
+    <div class="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
+      La contrasena no se edita desde aqui. Usa el boton de reset en el listado administrativo.
+    </div>
+    {% endif %}
+
+    <div class="flex flex-wrap items-center gap-3">
+      <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800" type="submit">
+        {% if user %}Guardar cambios{% else %}Crear usuario{% endif %}
+      </button>
+      <a href="/admin/users" class="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100">Cancelar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

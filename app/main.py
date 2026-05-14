@@ -13,9 +13,9 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from .auth import AuthenticationRequired, get_session_user, require_user, verify_password
+from .auth import AuthenticationRequired, get_session_user, hash_password, require_user, verify_password
 from .database import Base, SessionLocal, engine, get_db
-from .models import Loan, LoanAsset, LoanCategory, Team, User, Vehicle, VehicleTransfer
+from .models import Loan, LoanAsset, LoanCategory, Team, TeamConfig, User, Vehicle, VehicleTransfer
 from .seed import (
     ensure_default_users as seed_ensure_default_users,
     ensure_demo_teams,
@@ -96,6 +96,21 @@ def ensure_schema():
 ensure_schema()
 
 
+def ensure_team_config(db: Session, team: Team) -> TeamConfig:
+    config = db.scalar(select(TeamConfig).where(TeamConfig.team_id == team.id))
+    if config is None:
+        config = TeamConfig(
+            team_id=team.id,
+            allows_transfers=True,
+            requires_delivery_photos=False,
+            requires_return_photos=False,
+            default_loan_category_id=None,
+        )
+        db.add(config)
+        db.flush()
+    return config
+
+
 def ensure_default_team():
     db = SessionLocal()
     try:
@@ -112,6 +127,8 @@ def ensure_default_team():
             team = Team(name="Marketing Demo", is_active=True)
             db.add(team)
             db.flush()
+
+        ensure_team_config(db, team)
 
         for vehicle in db.scalars(select(Vehicle).where(Vehicle.team_id.is_(None))).all():
             vehicle.team_id = team.id
@@ -183,6 +200,16 @@ def load_loan_categories(db: Session, active_only: bool = True):
     if active_only:
         query = query.where(LoanCategory.is_active.is_(True))
     return db.scalars(query.order_by(LoanCategory.name)).all()
+
+
+def load_team_config(db: Session, team: Team | None) -> TeamConfig | None:
+    if team is None:
+        return None
+    return db.scalar(
+        select(TeamConfig)
+        .options(selectinload(TeamConfig.default_loan_category))
+        .where(TeamConfig.team_id == team.id)
+    )
 
 
 def count_rows(db: Session, model):
@@ -685,6 +712,177 @@ def admin_index(request: Request, db: Session = Depends(get_db)):
     )
 
 
+@app.get("/admin/users")
+def admin_users(request: Request, db: Session = Depends(get_db)):
+    current_user = request.state.current_user
+    if current_user is None or current_user.role not in {"admin", "fleet_supervisor"}:
+        flash_message(request, "warning", "No tienes permisos para ver usuarios.")
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    users = db.scalars(
+        select(User).options(selectinload(User.team)).order_by(User.username)
+    ).all()
+    return templates.TemplateResponse(
+        "admin/users.html",
+        {
+            "request": request,
+            "users": users,
+            "teams": load_teams(db, active_only=False),
+            "can_edit_users": current_user.role == "admin",
+        },
+    )
+
+
+@app.get("/admin/users/new")
+def admin_new_user(request: Request, current_user: User = Depends(require_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        flash_message(request, "warning", "Solo admin puede crear usuarios.")
+        return RedirectResponse(url="/admin/users", status_code=303)
+    return templates.TemplateResponse(
+        "admin/user_form.html",
+        {"request": request, "teams": load_teams(db, active_only=False), "user": None},
+    )
+
+
+@app.post("/admin/users")
+def create_user(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    role: str = Form(...),
+    team_id: int | None = Form(None),
+    is_active: bool = Form(False),
+    current_user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.role != "admin":
+        flash_message(request, "warning", "Solo admin puede administrar usuarios.")
+        return RedirectResponse(url="/admin/users", status_code=303)
+
+    cleaned_username = clean_optional(username)
+    if not cleaned_username:
+        flash_message(request, "error", "El username es obligatorio.")
+        return RedirectResponse(url="/admin/users/new", status_code=303)
+
+    if role not in {"admin", "fleet_supervisor", "coordinator", "operator", "viewer"}:
+        flash_message(request, "error", "Selecciona un rol valido.")
+        return RedirectResponse(url="/admin/users/new", status_code=303)
+
+    if db.scalar(select(User).where(User.username == cleaned_username)):
+        flash_message(request, "warning", "Ya existe un usuario con ese username.")
+        return RedirectResponse(url="/admin/users/new", status_code=303)
+
+    team = db.get(Team, team_id) if team_id else None
+    if team_id and team is None:
+        flash_message(request, "error", "Selecciona un equipo valido.")
+        return RedirectResponse(url="/admin/users/new", status_code=303)
+
+    db.add(
+        User(
+            username=cleaned_username,
+            password_hash=hash_password(password),
+            role=role,
+            team_id=team.id if team else None,
+            is_active=is_active,
+        )
+    )
+    db.commit()
+    flash_message(request, "success", f"Usuario creado: {cleaned_username}.")
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+
+@app.get("/admin/users/{user_id}/edit")
+def admin_edit_user(
+    user_id: int,
+    request: Request,
+    current_user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.role != "admin":
+        flash_message(request, "warning", "Solo admin puede modificar usuarios.")
+        return RedirectResponse(url="/admin/users", status_code=303)
+
+    user = db.scalar(select(User).options(selectinload(User.team)).where(User.id == user_id))
+    if user is None:
+        flash_message(request, "error", "El usuario no existe.")
+        return RedirectResponse(url="/admin/users", status_code=303)
+
+    return templates.TemplateResponse(
+        "admin/user_form.html",
+        {"request": request, "teams": load_teams(db, active_only=False), "user": user},
+    )
+
+
+@app.post("/admin/users/{user_id}")
+def update_user(
+    user_id: int,
+    request: Request,
+    username: str = Form(...),
+    role: str = Form(...),
+    team_id: int | None = Form(None),
+    is_active: bool = Form(False),
+    current_user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.role != "admin":
+        flash_message(request, "warning", "Solo admin puede administrar usuarios.")
+        return RedirectResponse(url="/admin/users", status_code=303)
+
+    user = db.get(User, user_id)
+    if user is None:
+        flash_message(request, "error", "El usuario no existe.")
+        return RedirectResponse(url="/admin/users", status_code=303)
+
+    cleaned_username = clean_optional(username)
+    if not cleaned_username:
+        flash_message(request, "error", "El username es obligatorio.")
+        return RedirectResponse(url=f"/admin/users/{user_id}/edit", status_code=303)
+
+    if role not in {"admin", "fleet_supervisor", "coordinator", "operator", "viewer"}:
+        flash_message(request, "error", "Selecciona un rol valido.")
+        return RedirectResponse(url=f"/admin/users/{user_id}/edit", status_code=303)
+
+    duplicate = db.scalar(select(User).where(User.username == cleaned_username, User.id != user.id))
+    if duplicate is not None:
+        flash_message(request, "warning", "Ya existe un usuario con ese username.")
+        return RedirectResponse(url=f"/admin/users/{user_id}/edit", status_code=303)
+
+    team = db.get(Team, team_id) if team_id else None
+    if team_id and team is None:
+        flash_message(request, "error", "Selecciona un equipo valido.")
+        return RedirectResponse(url=f"/admin/users/{user_id}/edit", status_code=303)
+
+    user.username = cleaned_username
+    user.role = role
+    user.team_id = team.id if team else None
+    user.is_active = is_active
+    db.commit()
+    flash_message(request, "success", f"Usuario guardado: {user.username}.")
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+
+@app.post("/admin/users/{user_id}/reset-password")
+def reset_user_password(
+    user_id: int,
+    request: Request,
+    current_user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.role != "admin":
+        flash_message(request, "warning", "Solo admin puede resetear contraseñas.")
+        return RedirectResponse(url="/admin/users", status_code=303)
+
+    user = db.get(User, user_id)
+    if user is None:
+        flash_message(request, "error", "El usuario no existe.")
+        return RedirectResponse(url="/admin/users", status_code=303)
+
+    user.password_hash = hash_password("demo123")
+    db.commit()
+    flash_message(request, "info", f"Contraseña reiniciada para {user.username}.")
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+
 @app.get("/admin/teams")
 def admin_teams(request: Request, db: Session = Depends(get_db)):
     current_user = request.state.current_user
@@ -692,7 +890,11 @@ def admin_teams(request: Request, db: Session = Depends(get_db)):
         flash_message(request, "warning", "No tienes permisos para administrar equipos.")
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    teams = load_teams(db, active_only=False)
+    teams = db.scalars(
+        select(Team)
+        .options(selectinload(Team.config).selectinload(TeamConfig.default_loan_category))
+        .order_by(Team.name)
+    ).all()
     return templates.TemplateResponse(
         "admin/teams.html",
         {
@@ -721,10 +923,14 @@ def create_team(
 
     existing = db.scalar(select(Team).where(Team.name == cleaned))
     if existing is None:
-        db.add(Team(name=cleaned, is_active=is_active))
+        team = Team(name=cleaned, is_active=is_active)
+        db.add(team)
+        db.flush()
+        ensure_team_config(db, team)
         flash_message(request, "success", f"Equipo creado: {cleaned}.")
     else:
         existing.is_active = is_active
+        ensure_team_config(db, existing)
         flash_message(request, "info", f"Equipo actualizado: {cleaned}.")
     db.commit()
     return RedirectResponse(url="/admin/teams", status_code=303)
@@ -756,9 +962,93 @@ def update_team(
             return RedirectResponse(url="/admin/teams", status_code=303)
         team.name = cleaned
     team.is_active = is_active
+    ensure_team_config(db, team)
     db.commit()
     flash_message(request, "success", f"Equipo guardado: {team.name}.")
     return RedirectResponse(url="/admin/teams", status_code=303)
+
+
+@app.get("/admin/teams/{team_id}/config")
+def admin_team_config(
+    team_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = request.state.current_user
+    if current_user is None or current_user.role not in GLOBAL_ROLES:
+        flash_message(request, "warning", "No tienes permisos para administrar configuracion de equipos.")
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    team = db.scalar(
+        select(Team)
+        .options(selectinload(Team.config).selectinload(TeamConfig.default_loan_category))
+        .where(Team.id == team_id)
+    )
+    if team is None:
+        flash_message(request, "error", "El equipo no existe.")
+        return RedirectResponse(url="/admin/teams", status_code=303)
+
+    config = team.config or TeamConfig(
+        team_id=team.id,
+        allows_transfers=True,
+        requires_delivery_photos=False,
+        requires_return_photos=False,
+        default_loan_category_id=None,
+    )
+    categories = db.scalars(
+        select(LoanCategory).order_by(LoanCategory.is_active.desc(), LoanCategory.name)
+    ).all()
+    return templates.TemplateResponse(
+        "admin/team_config_form.html",
+        {
+            "request": request,
+            "team": team,
+            "config": config,
+            "categories": categories,
+        },
+    )
+
+
+@app.post("/admin/teams/{team_id}/config")
+def update_team_config(
+    team_id: int,
+    request: Request,
+    allows_transfers: bool = Form(False),
+    requires_delivery_photos: bool = Form(False),
+    requires_return_photos: bool = Form(False),
+    default_loan_category_id: str | None = Form(None),
+    db: Session = Depends(get_db),
+):
+    current_user = request.state.current_user
+    if current_user is None or current_user.role not in GLOBAL_ROLES:
+        flash_message(request, "warning", "No tienes permisos para administrar configuracion de equipos.")
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    team = db.get(Team, team_id)
+    if team is None:
+        flash_message(request, "error", "El equipo no existe.")
+        return RedirectResponse(url="/admin/teams", status_code=303)
+
+    config = ensure_team_config(db, team)
+    category_id = parse_optional_int(default_loan_category_id)
+    if default_loan_category_id and category_id is None:
+        flash_message(request, "error", "Selecciona una categoria valida.")
+        return RedirectResponse(url=f"/admin/teams/{team.id}/config", status_code=303)
+
+    if category_id is not None:
+        category = db.get(LoanCategory, category_id)
+        if category is None:
+            flash_message(request, "error", "Selecciona una categoria valida.")
+            return RedirectResponse(url=f"/admin/teams/{team.id}/config", status_code=303)
+        config.default_loan_category_id = category.id
+    else:
+        config.default_loan_category_id = None
+    config.allows_transfers = allows_transfers
+    config.requires_delivery_photos = requires_delivery_photos
+    config.requires_return_photos = requires_return_photos
+    db.commit()
+    flash_message(request, "success", f"Configuracion guardada para {team.name}.")
+    return RedirectResponse(url=f"/admin/teams/{team.id}/config", status_code=303)
 
 
 @app.get("/admin/loan-categories")
@@ -976,7 +1266,13 @@ def operator_vehicle_detail(
 ):
     vehicle = db.scalar(
         select(Vehicle)
-        .options(selectinload(Vehicle.loans).selectinload(Loan.assets), selectinload(Vehicle.loans).selectinload(Loan.team))
+        .options(
+            selectinload(Vehicle.loans).selectinload(Loan.assets),
+            selectinload(Vehicle.loans).selectinload(Loan.team),
+            selectinload(Vehicle.team)
+            .selectinload(Team.config)
+            .selectinload(TeamConfig.default_loan_category),
+        )
         .where(Vehicle.id == vehicle_id)
     )
     if vehicle is None:
@@ -987,6 +1283,10 @@ def operator_vehicle_detail(
         return RedirectResponse(url="/operator/vehicles", status_code=303)
 
     active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)
+    team_config = load_team_config(db, vehicle.team)
+    default_category_name = None
+    if team_config and team_config.default_loan_category and team_config.default_loan_category.is_active:
+        default_category_name = team_config.default_loan_category.name
     return templates.TemplateResponse(
         "operator/detail.html",
         {
@@ -994,6 +1294,8 @@ def operator_vehicle_detail(
             "vehicle": vehicle,
             "active_loan": active_loan,
             "historical_team_name": active_loan.team.name if active_loan and active_loan.team else "Sin equipo",
+            "team_config": team_config,
+            "team_default_loan_category_name": default_category_name,
         },
     )
 
@@ -1053,7 +1355,12 @@ def edit_vehicle(
 ):
     vehicle = db.scalar(
         select(Vehicle)
-        .options(selectinload(Vehicle.loans), selectinload(Vehicle.team))
+        .options(
+            selectinload(Vehicle.loans),
+            selectinload(Vehicle.team)
+            .selectinload(Team.config)
+            .selectinload(TeamConfig.default_loan_category),
+        )
         .where(Vehicle.id == vehicle_id)
     )
     if vehicle is None:
@@ -1064,6 +1371,10 @@ def edit_vehicle(
         return RedirectResponse(url=admin_vehicle_redirect(current_user), status_code=303)
 
     active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)
+    team_config = load_team_config(db, vehicle.team)
+    default_category_name = None
+    if team_config and team_config.default_loan_category and team_config.default_loan_category.is_active:
+        default_category_name = team_config.default_loan_category.name
 
     return templates.TemplateResponse(
         "vehicles/edit.html",
@@ -1074,6 +1385,8 @@ def edit_vehicle(
             "can_transfer": can_transfer_vehicle(current_user, vehicle),
             "current_team_name": vehicle.team.name if vehicle.team else "Sin equipo",
             "active_loan": active_loan,
+            "team_config": team_config,
+            "team_default_loan_category_name": default_category_name,
         },
     )
 
@@ -1144,6 +1457,9 @@ def vehicle_detail(
             selectinload(Vehicle.transfer_history).selectinload(VehicleTransfer.from_team),
             selectinload(Vehicle.transfer_history).selectinload(VehicleTransfer.to_team),
             selectinload(Vehicle.transfer_history).selectinload(VehicleTransfer.transferred_by_user),
+            selectinload(Vehicle.team)
+            .selectinload(Team.config)
+            .selectinload(TeamConfig.default_loan_category),
         )
         .where(Vehicle.id == vehicle_id)
     )
@@ -1162,6 +1478,10 @@ def vehicle_detail(
         return RedirectResponse(url="/vehicles", status_code=303)
 
     active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)
+    team_config = load_team_config(db, vehicle.team)
+    default_category_name = None
+    if team_config and team_config.default_loan_category and team_config.default_loan_category.is_active:
+        default_category_name = team_config.default_loan_category.name
     return templates.TemplateResponse(
         "vehicles/detail.html",
         {
@@ -1171,6 +1491,8 @@ def vehicle_detail(
             "loan_rows": enrich_loans(vehicle.loans),
             "transfer_teams": [team for team in load_teams(db) if team.id != vehicle.team_id],
             "can_transfer": can_transfer_vehicle(current_user, vehicle),
+            "team_config": team_config,
+            "team_default_loan_category_name": default_category_name,
         },
     )
 
@@ -1186,7 +1508,12 @@ def transfer_vehicle(
 ):
     vehicle = db.scalar(
         select(Vehicle)
-        .options(selectinload(Vehicle.loans))
+        .options(
+            selectinload(Vehicle.loans),
+            selectinload(Vehicle.team)
+            .selectinload(Team.config)
+            .selectinload(TeamConfig.default_loan_category),
+        )
         .where(Vehicle.id == vehicle_id)
     )
     if vehicle is None:
@@ -1208,6 +1535,14 @@ def transfer_vehicle(
         suffix = f"?transfer_error=active_loan"
         if transfer_team:
             suffix = f"?team_id={transfer_team}&transfer_error=active_loan"
+        return RedirectResponse(url=f"/vehicles/{vehicle.id}/edit{suffix}", status_code=303)
+
+    if vehicle.team is not None and vehicle.team.config is not None and not vehicle.team.config.allows_transfers:
+        flash_message(request, "warning", "Este equipo no permite transferencias.")
+        transfer_team = request.query_params.get("team_id")
+        suffix = f"?transfer_error=team_blocked"
+        if transfer_team:
+            suffix = f"?team_id={transfer_team}&transfer_error=team_blocked"
         return RedirectResponse(url=f"/vehicles/{vehicle.id}/edit{suffix}", status_code=303)
 
     target_team = db.get(Team, to_team_id)
@@ -1260,13 +1595,22 @@ def deliver_vehicle(
     fuel_level: str | None = Form(None),
     notes: str | None = Form(None),
     agreement_signed: bool = Form(False),
+    loan_category: str | None = Form(None),
     delivery_files: list[UploadFile] = File(default=[]),
     agreement_file: UploadFile | None = File(None),
     redirect_to: str | None = Form(None),
     current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    vehicle = db.get(Vehicle, vehicle_id)
+    vehicle = db.scalar(
+        select(Vehicle)
+        .options(
+            selectinload(Vehicle.team)
+            .selectinload(Team.config)
+            .selectinload(TeamConfig.default_loan_category),
+        )
+        .where(Vehicle.id == vehicle_id)
+    )
     if vehicle is None or vehicle.status != "available":
         flash_message(request, "error", "No fue posible registrar la entrega.")
         return RedirectResponse(url="/vehicles", status_code=303)
@@ -1274,6 +1618,12 @@ def deliver_vehicle(
     if vehicle.team_id is None:
         default_team = get_default_team(db)
         vehicle.team_id = default_team.id
+        vehicle.team = default_team
+
+    team_config = load_team_config(db, vehicle.team)
+    default_category_name = None
+    if team_config and team_config.default_loan_category and team_config.default_loan_category.is_active:
+        default_category_name = team_config.default_loan_category.name
 
     loan = Loan(
         vehicle_id=vehicle.id,
@@ -1287,6 +1637,7 @@ def deliver_vehicle(
         fuel_level=clean_optional(fuel_level),
         notes=clean_optional(notes),
         agreement_signed=agreement_signed,
+        loan_category=clean_optional(loan_category) or default_category_name,
     )
     vehicle.status = "assigned"
     db.add(loan)
