@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Equipos | Gestion de flotas (Marketing) :: Demo{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <a href="/admin" class="text-sm text-zinc-600 hover:text-zinc-950">Volver a administracion</a>
+    <h1 class="mt-2 text-2xl font-semibold tracking-tight">Equipos</h1>
+    <p class="mt-1 text-sm text-zinc-600">Catalogo administrable sin borrar historicos.</p>
+  </div>
+</div>
+
+<section class="rounded-lg border border-zinc-200 bg-white p-6">
+  <h2 class="text-lg font-semibold">Crear equipo</h2>
+  <form action="/admin/teams" method="post" class="mt-4 grid gap-4 sm:grid-cols-[1fr_auto_auto]">
+    <label class="field">
+      <span>Nombre</span>
+      <input name="name" required>
+    </label>
+    <label class="flex items-end gap-2 text-sm font-medium">
+      <input type="checkbox" name="is_active" value="true" checked class="h-4 w-4 rounded border-zinc-300">
+      Activo
+    </label>
+    <div class="flex items-end">
+      <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800" type="submit">Crear</button>
+    </div>
+  </form>
+</section>
+
+<section class="mt-6 overflow-x-auto rounded-lg border border-zinc-200 bg-white">
+  <table class="w-full min-w-[780px] text-left text-sm">
+    <thead class="border-b border-zinc-200 bg-zinc-100 text-xs uppercase text-zinc-600">
+      <tr>
+        <th class="px-4 py-3">Nombre</th>
+        <th class="px-4 py-3">Estado</th>
+        <th class="px-4 py-3">Creado</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-zinc-200">
+      {% for team in teams %}
+      <tr>
+        <td class="px-4 py-3">
+          <form action="/admin/teams/{{ team.id }}" method="post" class="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+            <label class="field">
+              <span>Nombre</span>
+              <input name="name" value="{{ team.name }}" required>
+            </label>
+            <label class="flex items-end gap-2 text-sm font-medium">
+              <input type="checkbox" name="is_active" value="true" {% if team.is_active %}checked{% endif %} class="h-4 w-4 rounded border-zinc-300">
+              Activo
+            </label>
+            <div class="flex items-end gap-2">
+              <button class="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100" type="submit">Guardar</button>
+            </div>
+          </form>
+        </td>
+        <td class="px-4 py-3">
+          {% if team.is_active %}
+          <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">Activo</span>
+          {% else %}
+          <span class="rounded-full bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-700">Inactivo</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-zinc-600">{{ team.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+        <td class="px-4 py-3 text-right">
+          <div class="text-xs text-zinc-500">Sin borrado fisico</div>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="4" class="px-4 py-8 text-center text-zinc-600">No hay equipos cargados.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

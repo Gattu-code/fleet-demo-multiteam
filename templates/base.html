@@ -145,6 +145,29 @@
         </div>
       </div>
     </header>
+    {% if request.state.flash_messages %}
+    <div class="mx-auto max-w-6xl px-5 pt-5">
+      <div class="grid gap-3">
+        {% for flash in request.state.flash_messages %}
+        {% set level = flash["level"] %}
+        {% set message = flash["message"] %}
+        {% if level == "success" %}
+        {% set box = "border-emerald-200 bg-emerald-50 text-emerald-900" %}
+        {% elif level == "error" %}
+        {% set box = "border-rose-200 bg-rose-50 text-rose-900" %}
+        {% elif level == "warning" %}
+        {% set box = "border-amber-200 bg-amber-50 text-amber-900" %}
+        {% else %}
+        {% set box = "border-sky-200 bg-sky-50 text-sky-900" %}
+        {% endif %}
+        <div class="rounded-lg border px-4 py-3 text-sm {{ box }}">
+          <span class="font-medium capitalize">{{ level }}</span>
+          <span class="ml-2">{{ message }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
     <main class="mx-auto max-w-6xl px-5 py-8">
       {% block content %}{% endblock %}
     </main>

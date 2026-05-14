@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .auth import AuthenticationRequired, get_session_user, require_user, verify_password
@@ -49,6 +50,13 @@ def ensure_schema():
             connection.exec_driver_sql(
                 "ALTER TABLE vehicles ADD COLUMN has_open_issue BOOLEAN NOT NULL DEFAULT 0"
             )
+        team_columns = {
+            row[1] for row in connection.exec_driver_sql("PRAGMA table_info(teams)")
+        }
+        if "is_active" not in team_columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE teams ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"
+            )
         loan_columns = {
             row[1] for row in connection.exec_driver_sql("PRAGMA table_info(loans)")
         }
@@ -70,6 +78,14 @@ def ensure_schema():
             connection.exec_driver_sql(
                 "ALTER TABLE loans ADD COLUMN loan_category VARCHAR(80)"
             )
+        category_columns = {
+            row[1]
+            for row in connection.exec_driver_sql("PRAGMA table_info(loan_categories)")
+        }
+        if "is_active" not in category_columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE loan_categories ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"
+            )
         user_columns = {
             row[1] for row in connection.exec_driver_sql("PRAGMA table_info(users)")
         }
@@ -83,9 +99,17 @@ ensure_schema()
 def ensure_default_team():
     db = SessionLocal()
     try:
-        team = db.scalar(select(Team).where(Team.name == "Marketing Demo"))
+        team = db.scalar(select(Team).where(Team.name == "Marketing Demo", Team.is_active.is_(True)))
         if team is None:
-            team = Team(name="Marketing Demo")
+            active_team = db.scalars(select(Team).where(Team.is_active.is_(True)).order_by(Team.name)).first()
+            if active_team is not None:
+                team = active_team
+            else:
+                team = db.scalar(select(Team).where(Team.name == "Marketing Demo"))
+                if team is not None:
+                    team.is_active = True
+        if team is None:
+            team = Team(name="Marketing Demo", is_active=True)
             db.add(team)
             db.flush()
 
@@ -125,6 +149,7 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 @app.middleware("http")
 async def attach_current_user(request: Request, call_next):
     session_data = request.scope.get("session") or {}
+    request.state.flash_messages = list(session_data.get("flash_messages", []))
     user_id = session_data.get("user_id")
     if user_id is None:
         request.state.current_user = None
@@ -134,11 +159,16 @@ async def attach_current_user(request: Request, call_next):
             request.state.current_user = db.get(User, user_id)
         finally:
             db.close()
-    return await call_next(request)
+    response = await call_next(request)
+    if response.status_code < 300 or response.status_code >= 400:
+        if "flash_messages" in session_data:
+            session_data.pop("flash_messages", None)
+    return response
 
 
 @app.exception_handler(AuthenticationRequired)
 def authentication_required_handler(request: Request, exc: AuthenticationRequired):
+    flash_message(request, "warning", "Debes iniciar sesion para continuar.")
     next_url = request.url.path
     if request.url.query:
         next_url = f"{next_url}?{request.url.query}"
@@ -148,12 +178,38 @@ def authentication_required_handler(request: Request, exc: AuthenticationRequire
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "dev-session-secret"))
 
 
-def load_loan_categories(db: Session):
-    return db.scalars(select(LoanCategory).order_by(LoanCategory.name)).all()
+def load_loan_categories(db: Session, active_only: bool = True):
+    query = select(LoanCategory)
+    if active_only:
+        query = query.where(LoanCategory.is_active.is_(True))
+    return db.scalars(query.order_by(LoanCategory.name)).all()
 
 
 def count_rows(db: Session, model):
     return db.scalar(select(func.count()).select_from(model)) or 0
+
+
+def flash_message(request: Request, level: str, message: str, persist: bool = True):
+    flash_entry = {"level": level, "message": message}
+    flash_messages = getattr(request.state, "flash_messages", None)
+    if flash_messages is None:
+        flash_messages = []
+        request.state.flash_messages = flash_messages
+    flash_messages.append(flash_entry)
+    if persist:
+        session_messages = request.session.setdefault("flash_messages", [])
+        session_messages.append(flash_entry)
+
+
+def flash_redirect(
+    request: Request,
+    url: str,
+    level: str,
+    message: str,
+    status_code: int = 303,
+) -> RedirectResponse:
+    flash_message(request, level, message)
+    return RedirectResponse(url=url, status_code=status_code)
 
 
 def utc_now():
@@ -225,8 +281,11 @@ def enrich_loans(loans: list[Loan]):
     ]
 
 
-def load_teams(db: Session):
-    return db.scalars(select(Team).order_by(Team.name)).all()
+def load_teams(db: Session, active_only: bool = True):
+    query = select(Team)
+    if active_only:
+        query = query.where(Team.is_active.is_(True))
+    return db.scalars(query.order_by(Team.name)).all()
 
 
 def parse_optional_int(value: str | None) -> int | None:
@@ -271,7 +330,7 @@ def admin_vehicle_redirect(user: User | None) -> str:
 
 def load_visible_teams(db: Session, user: User | None):
     if is_global_user(user):
-        return load_teams(db)
+        return load_teams(db, active_only=True)
     if user.team_id is None:
         return []
     team = db.get(Team, user.team_id)
@@ -290,6 +349,25 @@ def apply_team_scope(query, user: User | None, column):
     if user.team_id is None:
         return query.where(column == -1)
     return query.where(column == user.team_id)
+
+
+def get_default_team(db: Session) -> Team:
+    team = db.scalar(
+        select(Team).where(Team.name == "Marketing Demo", Team.is_active.is_(True))
+    )
+    if team is not None:
+        return team
+    team = db.scalars(select(Team).where(Team.is_active.is_(True)).order_by(Team.name)).first()
+    if team is not None:
+        return team
+    team = db.scalar(select(Team).where(Team.name == "Marketing Demo"))
+    if team is not None:
+        team.is_active = True
+        return team
+    team = Team(name="Marketing Demo", is_active=True)
+    db.add(team)
+    db.flush()
+    return team
 
 
 def pct(part: int | float, total: int | float) -> float:
@@ -370,23 +448,25 @@ def login_submit(
 ):
     user = db.scalar(select(User).where(User.username == username.strip(), User.is_active.is_(True)))
     if user is None or not verify_password(password, user.password_hash):
+        flash_message(request, "error", "Credenciales invalidas", persist=False)
         return templates.TemplateResponse(
             "login.html",
             {
                 "request": request,
                 "next": login_redirect_target(next),
-                "error": "Credenciales invalidas",
             },
             status_code=401,
         )
 
     request.session["user_id"] = user.id
+    flash_message(request, "success", f"Bienvenido, {user.username}")
     return RedirectResponse(url=login_redirect_target(next, user), status_code=303)
 
 
 @app.post("/logout")
 def logout(request: Request):
     request.session.pop("user_id", None)
+    flash_message(request, "info", "Sesion cerrada correctamente.")
     return RedirectResponse(url="/login", status_code=303)
 
 
@@ -399,6 +479,7 @@ def dashboard(
 ):
     current_user = request.state.current_user
     if current_user is not None and current_user.role == "operator":
+        flash_message(request, "info", "Has sido enviado al panel operativo.")
         operator_target = "/operator/vehicles"
         if team_id:
             operator_target = f"{operator_target}?team_id={team_id}"
@@ -590,6 +671,7 @@ def list_vehicles(
 def admin_index(request: Request, db: Session = Depends(get_db)):
     current_user = request.state.current_user
     if current_user is None or current_user.role not in {"admin", "fleet_supervisor"}:
+        flash_message(request, "warning", "No tienes acceso al modulo administrativo.")
         return RedirectResponse(url="/dashboard", status_code=303)
 
     return templates.TemplateResponse(
@@ -601,6 +683,165 @@ def admin_index(request: Request, db: Session = Depends(get_db)):
             "category_count": count_rows(db, LoanCategory),
         },
     )
+
+
+@app.get("/admin/teams")
+def admin_teams(request: Request, db: Session = Depends(get_db)):
+    current_user = request.state.current_user
+    if current_user is None or current_user.role not in GLOBAL_ROLES:
+        flash_message(request, "warning", "No tienes permisos para administrar equipos.")
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    teams = load_teams(db, active_only=False)
+    return templates.TemplateResponse(
+        "admin/teams.html",
+        {
+            "request": request,
+            "teams": teams,
+        },
+    )
+
+
+@app.post("/admin/teams")
+def create_team(
+    request: Request,
+    name: str = Form(...),
+    is_active: bool = Form(False),
+    current_user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.role not in GLOBAL_ROLES:
+        flash_message(request, "warning", "No tienes permisos para administrar equipos.")
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    cleaned = clean_optional(name)
+    if not cleaned:
+        flash_message(request, "error", "El nombre del equipo es obligatorio.")
+        return RedirectResponse(url="/admin/teams", status_code=303)
+
+    existing = db.scalar(select(Team).where(Team.name == cleaned))
+    if existing is None:
+        db.add(Team(name=cleaned, is_active=is_active))
+        flash_message(request, "success", f"Equipo creado: {cleaned}.")
+    else:
+        existing.is_active = is_active
+        flash_message(request, "info", f"Equipo actualizado: {cleaned}.")
+    db.commit()
+    return RedirectResponse(url="/admin/teams", status_code=303)
+
+
+@app.post("/admin/teams/{team_id}")
+def update_team(
+    team_id: int,
+    request: Request,
+    name: str = Form(...),
+    is_active: bool = Form(False),
+    current_user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.role not in GLOBAL_ROLES:
+        flash_message(request, "warning", "No tienes permisos para administrar equipos.")
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    team = db.get(Team, team_id)
+    if team is None:
+        flash_message(request, "error", "El equipo no existe.")
+        return RedirectResponse(url="/admin/teams", status_code=303)
+
+    cleaned = clean_optional(name)
+    if cleaned:
+        duplicate = db.scalar(select(Team).where(Team.name == cleaned, Team.id != team.id))
+        if duplicate is not None:
+            flash_message(request, "warning", "Ya existe un equipo con ese nombre.")
+            return RedirectResponse(url="/admin/teams", status_code=303)
+        team.name = cleaned
+    team.is_active = is_active
+    db.commit()
+    flash_message(request, "success", f"Equipo guardado: {team.name}.")
+    return RedirectResponse(url="/admin/teams", status_code=303)
+
+
+@app.get("/admin/loan-categories")
+def admin_loan_categories(request: Request, db: Session = Depends(get_db)):
+    current_user = request.state.current_user
+    if current_user is None or current_user.role not in GLOBAL_ROLES:
+        flash_message(request, "warning", "No tienes permisos para administrar categorias.")
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    categories = db.scalars(
+        select(LoanCategory).order_by(LoanCategory.is_active.desc(), LoanCategory.name)
+    ).all()
+    return templates.TemplateResponse(
+        "admin/loan_categories.html",
+        {
+            "request": request,
+            "categories": categories,
+        },
+    )
+
+
+@app.post("/admin/loan-categories")
+def create_loan_category(
+    request: Request,
+    name: str = Form(...),
+    is_active: bool = Form(False),
+    current_user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.role not in GLOBAL_ROLES:
+        flash_message(request, "warning", "No tienes permisos para administrar categorias.")
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    cleaned = clean_optional(name)
+    if not cleaned:
+        flash_message(request, "error", "El nombre de la categoria es obligatorio.")
+        return RedirectResponse(url="/admin/loan-categories", status_code=303)
+
+    existing = db.scalar(select(LoanCategory).where(LoanCategory.name == cleaned))
+    if existing is None:
+        db.add(LoanCategory(name=cleaned, is_active=is_active))
+        flash_message(request, "success", f"Categoria creada: {cleaned}.")
+    else:
+        existing.is_active = is_active
+        flash_message(request, "info", f"Categoria actualizada: {cleaned}.")
+    db.commit()
+    return RedirectResponse(url="/admin/loan-categories", status_code=303)
+
+
+@app.post("/admin/loan-categories/{category_id}")
+def update_loan_category_master(
+    category_id: int,
+    request: Request,
+    name: str = Form(...),
+    is_active: bool = Form(False),
+    current_user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.role not in GLOBAL_ROLES:
+        flash_message(request, "warning", "No tienes permisos para administrar categorias.")
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    category = db.get(LoanCategory, category_id)
+    if category is None:
+        flash_message(request, "error", "La categoria no existe.")
+        return RedirectResponse(url="/admin/loan-categories", status_code=303)
+
+    cleaned = clean_optional(name)
+    if cleaned:
+        duplicate = db.scalar(
+            select(LoanCategory).where(
+                LoanCategory.name == cleaned,
+                LoanCategory.id != category.id,
+            )
+        )
+        if duplicate is not None:
+            flash_message(request, "warning", "Ya existe una categoria con ese nombre.")
+            return RedirectResponse(url="/admin/loan-categories", status_code=303)
+        category.name = cleaned
+    category.is_active = is_active
+    db.commit()
+    flash_message(request, "success", f"Categoria guardada: {category.name}.")
+    return RedirectResponse(url="/admin/loan-categories", status_code=303)
 
 
 @app.get("/loans")
@@ -677,8 +918,10 @@ def loan_detail(loan_id: int, request: Request, db: Session = Depends(get_db)):
         .where(Loan.id == loan_id)
     )
     if loan is None:
+        flash_message(request, "error", "El prestamo no existe.")
         return RedirectResponse(url="/loans", status_code=303)
     if not is_global_user(current_user) and current_user.team_id != loan.team_id:
+        flash_message(request, "warning", "No tienes acceso a este prestamo.")
         return RedirectResponse(url="/loans", status_code=303)
 
     row = enrich_loans([loan])[0]
@@ -737,8 +980,10 @@ def operator_vehicle_detail(
         .where(Vehicle.id == vehicle_id)
     )
     if vehicle is None:
+        flash_message(request, "error", "El vehiculo no existe.")
         return RedirectResponse(url="/operator/vehicles", status_code=303)
     if not is_global_user(request.state.current_user) and request.state.current_user.team_id != vehicle.team_id:
+        flash_message(request, "warning", "No tienes acceso a este vehiculo.")
         return RedirectResponse(url="/operator/vehicles", status_code=303)
 
     active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)
@@ -756,12 +1001,14 @@ def operator_vehicle_detail(
 @app.get("/vehicles/new")
 def new_vehicle(request: Request, current_user: User = Depends(require_user)):
     if current_user.role not in GLOBAL_ROLES:
+        flash_message(request, "warning", "No tienes permisos para crear vehiculos.")
         return RedirectResponse(url=admin_vehicle_redirect(current_user), status_code=303)
     return templates.TemplateResponse("vehicles/new.html", {"request": request})
 
 
 @app.post("/vehicles")
 def create_vehicle(
+    request: Request,
     brand: str = Form(...),
     model: str = Form(...),
     year: int | None = Form(None),
@@ -772,13 +1019,10 @@ def create_vehicle(
     db: Session = Depends(get_db),
 ):
     if current_user.role not in GLOBAL_ROLES:
+        flash_message(request, "warning", "No tienes permisos para crear vehiculos.")
         return RedirectResponse(url=admin_vehicle_redirect(current_user), status_code=303)
     reference_image_path = save_upload(reference_image, "vehicle", VEHICLE_IMAGE_DIR)
-    default_team = db.scalar(select(Team).where(Team.name == "Marketing Demo"))
-    if default_team is None:
-        default_team = Team(name="Marketing Demo")
-        db.add(default_team)
-        db.flush()
+    default_team = get_default_team(db)
     vehicle = Vehicle(
         team_id=default_team.id,
         brand=brand.strip(),
@@ -790,7 +1034,13 @@ def create_vehicle(
         status="available",
     )
     db.add(vehicle)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        flash_message(request, "error", "Ya existe un vehiculo con esa placa.")
+        return RedirectResponse(url=admin_vehicle_redirect(current_user), status_code=303)
+    flash_message(request, "success", f"Vehiculo creado: {vehicle.plate}.")
     return RedirectResponse(url="/vehicles", status_code=303)
 
 
@@ -807,8 +1057,10 @@ def edit_vehicle(
         .where(Vehicle.id == vehicle_id)
     )
     if vehicle is None:
+        flash_message(request, "error", "El vehiculo no existe.")
         return RedirectResponse(url="/vehicles", status_code=303)
     if not can_admin_vehicle(current_user, vehicle):
+        flash_message(request, "warning", "No tienes permisos para editar este vehiculo.")
         return RedirectResponse(url=admin_vehicle_redirect(current_user), status_code=303)
 
     active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)
@@ -829,6 +1081,7 @@ def edit_vehicle(
 @app.post("/vehicles/{vehicle_id}/edit")
 def update_vehicle(
     vehicle_id: int,
+    request: Request,
     brand: str = Form(...),
     model: str = Form(...),
     year: int | None = Form(None),
@@ -846,8 +1099,10 @@ def update_vehicle(
         .where(Vehicle.id == vehicle_id)
     )
     if vehicle is None:
+        flash_message(request, "error", "El vehiculo no existe.")
         return RedirectResponse(url="/vehicles", status_code=303)
     if not can_admin_vehicle(current_user, vehicle):
+        flash_message(request, "warning", "No tienes permisos para editar este vehiculo.")
         return RedirectResponse(url=admin_vehicle_redirect(current_user), status_code=303)
 
     reference_image_path = save_upload(reference_image, "vehicle", VEHICLE_IMAGE_DIR)
@@ -865,7 +1120,13 @@ def update_vehicle(
     if reference_image_path:
         vehicle.reference_image_path = reference_image_path
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        flash_message(request, "error", "Ya existe un vehiculo con esa placa.")
+        return RedirectResponse(url=f"/vehicles/{vehicle.id}/edit", status_code=303)
+    flash_message(request, "success", f"Vehiculo guardado: {vehicle.plate}.")
     return RedirectResponse(url=f"/vehicles/{vehicle.id}", status_code=303)
 
 
@@ -887,14 +1148,17 @@ def vehicle_detail(
         .where(Vehicle.id == vehicle_id)
     )
     if vehicle is None:
+        flash_message(request, "error", "El vehiculo no existe.")
         return RedirectResponse(url="/vehicles", status_code=303)
     if current_user.role == "operator":
+        flash_message(request, "info", "Se abrio la vista operativa del vehiculo.")
         team_id = request.query_params.get("team_id")
         target = f"/operator/vehicles/{vehicle.id}"
         if team_id:
             target = f"{target}?team_id={team_id}"
         return RedirectResponse(url=target, status_code=303)
     if not is_global_user(current_user) and current_user.team_id != vehicle.team_id:
+        flash_message(request, "warning", "No tienes acceso a este vehiculo.")
         return RedirectResponse(url="/vehicles", status_code=303)
 
     active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)
@@ -926,9 +1190,11 @@ def transfer_vehicle(
         .where(Vehicle.id == vehicle_id)
     )
     if vehicle is None:
+        flash_message(request, "error", "El vehiculo no existe.")
         return RedirectResponse(url="/vehicles", status_code=303)
 
     if not can_transfer_vehicle(current_user, vehicle):
+        flash_message(request, "warning", "No tienes permisos para transferir este vehiculo.")
         transfer_team = request.query_params.get("team_id")
         suffix = f"?transfer_error=forbidden"
         if transfer_team:
@@ -937,6 +1203,7 @@ def transfer_vehicle(
 
     active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)
     if active_loan is not None:
+        flash_message(request, "error", "No es posible transferir este vehiculo porque tiene un prestamo activo.")
         transfer_team = request.query_params.get("team_id")
         suffix = f"?transfer_error=active_loan"
         if transfer_team:
@@ -944,7 +1211,8 @@ def transfer_vehicle(
         return RedirectResponse(url=f"/vehicles/{vehicle.id}/edit{suffix}", status_code=303)
 
     target_team = db.get(Team, to_team_id)
-    if target_team is None or target_team.id == vehicle.team_id:
+    if target_team is None or not target_team.is_active or target_team.id == vehicle.team_id:
+        flash_message(request, "error", "Selecciona un equipo destino valido.")
         transfer_team = request.query_params.get("team_id")
         suffix = f"?transfer_error=invalid_team"
         if transfer_team:
@@ -953,6 +1221,7 @@ def transfer_vehicle(
 
     from_team_id = vehicle.team_id
     if from_team_id is None:
+        flash_message(request, "error", "El vehiculo no tiene un equipo actual.")
         transfer_team = request.query_params.get("team_id")
         suffix = f"?transfer_error=missing_team"
         if transfer_team:
@@ -969,6 +1238,7 @@ def transfer_vehicle(
     vehicle.team_id = target_team.id
     db.add(transfer)
     db.commit()
+    flash_message(request, "success", f"Vehiculo transferido correctamente a {target_team.name}.")
 
     query = {"transfer_success": "1", "transfer_team_name": target_team.name}
     transfer_team = request.query_params.get("team_id")
@@ -980,6 +1250,7 @@ def transfer_vehicle(
 @app.post("/vehicles/{vehicle_id}/deliver")
 def deliver_vehicle(
     vehicle_id: int,
+    request: Request,
     borrower_name: str = Form(...),
     phone: str | None = Form(None),
     email: str | None = Form(None),
@@ -997,14 +1268,11 @@ def deliver_vehicle(
 ):
     vehicle = db.get(Vehicle, vehicle_id)
     if vehicle is None or vehicle.status != "available":
+        flash_message(request, "error", "No fue posible registrar la entrega.")
         return RedirectResponse(url="/vehicles", status_code=303)
 
     if vehicle.team_id is None:
-        default_team = db.scalar(select(Team).where(Team.name == "Marketing Demo"))
-        if default_team is None:
-            default_team = Team(name="Marketing Demo")
-            db.add(default_team)
-            db.flush()
+        default_team = get_default_team(db)
         vehicle.team_id = default_team.id
 
     loan = Loan(
@@ -1027,7 +1295,9 @@ def deliver_vehicle(
     add_loan_assets(db, loan, [agreement_file] if agreement_file else [], "agreement")
     db.commit()
     if redirect_to == "operator":
+        flash_message(request, "success", f"Entrega registrada para {vehicle.plate}.")
         return RedirectResponse(url=f"/operator/vehicles/{vehicle.id}", status_code=303)
+    flash_message(request, "success", f"Entrega registrada para {vehicle.plate}.")
     return RedirectResponse(url=f"/vehicles/{vehicle.id}", status_code=303)
 
 
@@ -1044,6 +1314,7 @@ def edit_delivery(
         .where(Loan.id == loan_id)
     )
     if loan is None:
+        flash_message(request, "error", "El prestamo no existe.")
         return RedirectResponse(url="/vehicles", status_code=303)
 
     return templates.TemplateResponse(
@@ -1055,6 +1326,7 @@ def edit_delivery(
 @app.post("/loans/{loan_id}/edit-delivery")
 def update_delivery(
     loan_id: int,
+    request: Request,
     borrower_name: str = Form(...),
     phone: str | None = Form(None),
     email: str | None = Form(None),
@@ -1071,6 +1343,7 @@ def update_delivery(
 ):
     loan = db.get(Loan, loan_id)
     if loan is None:
+        flash_message(request, "error", "El prestamo no existe.")
         return RedirectResponse(url="/vehicles", status_code=303)
 
     loan.borrower_name = borrower_name.strip()
@@ -1085,12 +1358,14 @@ def update_delivery(
     add_loan_assets(db, loan, delivery_files, "delivery")
     add_loan_assets(db, loan, [agreement_file] if agreement_file else [], "agreement")
     db.commit()
+    flash_message(request, "success", f"Entrega actualizada para {loan.borrower_name}.")
     return RedirectResponse(url=f"/vehicles/{loan.vehicle_id}", status_code=303)
 
 
 @app.post("/loans/{loan_id}/category")
 def update_loan_category(
     loan_id: int,
+    request: Request,
     loan_category: str | None = Form(None),
     filter_status: str | None = Form(None),
     filter_category: str | None = Form(None),
@@ -1102,11 +1377,13 @@ def update_loan_category(
 ):
     loan = db.get(Loan, loan_id)
     if loan is None:
+        flash_message(request, "error", "El prestamo no existe.")
         return RedirectResponse(url="/vehicles", status_code=303)
 
     loan.loan_category = clean_optional(loan_category)
     seed_ensure_loan_categories(db)
     db.commit()
+    flash_message(request, "success", f"Categoria actualizada para el prestamo de {loan.borrower_name}.")
     query = {
         "saved": str(loan.id),
     }
@@ -1126,6 +1403,7 @@ def update_loan_category(
 @app.post("/loans/{loan_id}/return")
 def return_vehicle(
     loan_id: int,
+    request: Request,
     return_mileage: int = Form(...),
     return_operator: str | None = Form(None),
     fuel_level: str | None = Form(None),
@@ -1140,6 +1418,7 @@ def return_vehicle(
 ):
     loan = db.get(Loan, loan_id)
     if loan is None:
+        flash_message(request, "error", "El prestamo no existe.")
         return RedirectResponse(url="/vehicles", status_code=303)
 
     loan.return_mileage = return_mileage
@@ -1162,4 +1441,5 @@ def return_vehicle(
     redirect_target = "/operator/vehicles" if redirect_to == "operator" else "/vehicles"
     if team_id:
         redirect_target = f"{redirect_target}?team_id={team_id}"
+    flash_message(request, "success", f"Devolucion registrada para {loan.borrower_name}.")
     return RedirectResponse(url=redirect_target, status_code=303)

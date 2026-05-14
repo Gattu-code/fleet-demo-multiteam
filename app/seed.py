@@ -72,6 +72,13 @@ def ensure_schema():
             connection.exec_driver_sql(
                 "ALTER TABLE vehicles ADD COLUMN has_open_issue BOOLEAN NOT NULL DEFAULT 0"
             )
+        team_columns = {
+            row[1] for row in connection.exec_driver_sql("PRAGMA table_info(teams)")
+        }
+        if "is_active" not in team_columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE teams ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"
+            )
 
         loan_columns = {
             row[1] for row in connection.exec_driver_sql("PRAGMA table_info(loans)")
@@ -93,6 +100,13 @@ def ensure_schema():
         if "loan_category" not in loan_columns:
             connection.exec_driver_sql(
                 "ALTER TABLE loans ADD COLUMN loan_category VARCHAR(80)"
+            )
+        category_columns = {
+            row[1] for row in connection.exec_driver_sql("PRAGMA table_info(loan_categories)")
+        }
+        if "is_active" not in category_columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE loan_categories ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"
             )
 
         user_columns = {
@@ -119,9 +133,11 @@ def first_vehicle_image() -> str | None:
 def ensure_team(db, name: str) -> Team:
     team = db.scalar(select(Team).where(Team.name == name))
     if team is None:
-        team = Team(name=name)
+        team = Team(name=name, is_active=True)
         db.add(team)
         db.flush()
+    else:
+        team.is_active = True
     return team
 
 
@@ -135,7 +151,7 @@ def ensure_loan_categories(db):
     )
     for name in dict.fromkeys(names_to_seed):
         if name not in existing_names:
-            db.add(LoanCategory(name=name))
+            db.add(LoanCategory(name=name, is_active=True))
 
 
 def get_or_create_vehicle(db, data):
