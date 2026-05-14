@@ -9,7 +9,7 @@ from fastapi.responses import RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from .auth import AuthenticationRequired, get_session_user, require_user, verify_password
@@ -150,6 +150,10 @@ app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "de
 
 def load_loan_categories(db: Session):
     return db.scalars(select(LoanCategory).order_by(LoanCategory.name)).all()
+
+
+def count_rows(db: Session, model):
+    return db.scalar(select(func.count()).select_from(model)) or 0
 
 
 def utc_now():
@@ -578,6 +582,23 @@ def list_vehicles(
             "vehicle_rows": vehicle_rows,
             "teams": teams,
             "selected_team_id": selected_team_id,
+        },
+    )
+
+
+@app.get("/admin")
+def admin_index(request: Request, db: Session = Depends(get_db)):
+    current_user = request.state.current_user
+    if current_user is None or current_user.role not in {"admin", "fleet_supervisor"}:
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    return templates.TemplateResponse(
+        "admin/index.html",
+        {
+            "request": request,
+            "team_count": count_rows(db, Team),
+            "user_count": count_rows(db, User),
+            "category_count": count_rows(db, LoanCategory),
         },
     )
 
