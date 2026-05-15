@@ -263,6 +263,31 @@ def load_loan_operational_context(db: Session, loan: Loan):
     }
 
 
+def group_loan_assets(loan: Loan | None):
+    grouped = {
+        "delivery_photo": [],
+        "return_photo": [],
+        "agreement_doc": [],
+        "issue_photo": [],
+        "other": [],
+    }
+    if loan is None:
+        return grouped
+
+    for asset in loan.assets:
+        if asset.category == "delivery":
+            grouped["delivery_photo"].append(asset)
+        elif asset.category == "return":
+            grouped["return_photo"].append(asset)
+        elif asset.category == "agreement":
+            grouped["agreement_doc"].append(asset)
+        elif asset.category == "return_issue":
+            grouped["issue_photo"].append(asset)
+        else:
+            grouped["other"].append(asset)
+    return grouped
+
+
 def count_rows(db: Session, model):
     return db.scalar(select(func.count()).select_from(model)) or 0
 
@@ -354,6 +379,7 @@ def enrich_loans(loans: list[Loan]):
                 if loan.return_mileage is not None
                 else None
             ),
+            "asset_groups": group_loan_assets(loan),
         }
         for loan in loans
     ]
@@ -1272,10 +1298,6 @@ def loan_detail(loan_id: int, request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/loans", status_code=303)
 
     row = enrich_loans([loan])[0]
-    row["agreement_asset"] = next(
-        (asset for asset in loan.assets if asset.category == "agreement"),
-        None,
-    )
     return templates.TemplateResponse(
         "loans/detail.html",
         {
@@ -1284,6 +1306,7 @@ def loan_detail(loan_id: int, request: Request, db: Session = Depends(get_db)):
             "loan_categories": load_loan_categories(db),
             "historical_team_name": loan.team.name if loan.team else "Sin equipo",
             "operational_checklists": load_loan_operational_context(db, loan),
+            "asset_groups": group_loan_assets(loan),
         },
     )
 
@@ -1357,6 +1380,7 @@ def operator_vehicle_detail(
             "historical_team_name": active_loan.team.name if active_loan and active_loan.team else "Sin equipo",
             "team_config": team_config,
             "team_default_loan_category_name": default_category_name,
+            "active_loan_asset_groups": group_loan_assets(active_loan),
             "operational_checklists": load_loan_operational_context(db, active_loan) if active_loan else {"delivery_checklists": [], "return_checklists": [], "loan_checklist_items": [], "loan_issues": []},
             "active_checklist_item_map": active_checklist_item_map,
         },
@@ -1561,6 +1585,7 @@ def vehicle_detail(
             "can_transfer": can_transfer_vehicle(current_user, vehicle),
             "team_config": team_config,
             "team_default_loan_category_name": default_category_name,
+            "active_loan_asset_groups": group_loan_assets(active_loan),
             "operational_checklists": load_loan_operational_context(db, active_loan) if active_loan else {"delivery_checklists": [], "return_checklists": [], "loan_checklist_items": [], "loan_issues": []},
             "active_checklist_item_map": active_checklist_item_map,
         },
