@@ -140,7 +140,9 @@
             <button class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100" type="submit">Salir</button>
           </form>
           {% else %}
+          {% if request.url.path != "/login" %}
           <a href="/login" class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Ingresar</a>
+          {% endif %}
           {% endif %}
         </div>
       </div>

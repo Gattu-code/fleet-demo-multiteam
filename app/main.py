@@ -1156,6 +1156,31 @@ def admin_loan_categories(request: Request, db: Session = Depends(get_db)):
     )
 
 
+@app.get("/admin/loan-categories/{category_id}")
+def edit_loan_category(
+    category_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = request.state.current_user
+    if current_user is None or current_user.role not in GLOBAL_ROLES:
+        flash_message(request, "warning", "No tienes permisos para administrar categorias.")
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    category = db.get(LoanCategory, category_id)
+    if category is None:
+        flash_message(request, "error", "La categoria no existe.")
+        return RedirectResponse(url="/admin/loan-categories", status_code=303)
+
+    return templates.TemplateResponse(
+        "admin/loan_category_form.html",
+        {
+            "request": request,
+            "category": category,
+        },
+    )
+
+
 @app.post("/admin/loan-categories")
 def create_loan_category(
     request: Request,
@@ -1346,8 +1371,8 @@ def operator_vehicles(
         active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)
         team_config = load_team_config(db, vehicle.team)
         alerts = []
-        if vehicle.has_open_issue or (active_loan and active_loan.return_has_issues):
-            alerts.append({"label": "Con novedad", "tone": "rose"})
+        if vehicle.has_open_issue:
+            alerts.append({"label": "Novedad abierta", "tone": "rose"})
         if team_config and team_config.requires_delivery_photos and not active_loan:
             alerts.append({"label": "Fotos entrega requeridas", "tone": "amber"})
         if team_config and team_config.requires_return_photos and active_loan:
@@ -1364,7 +1389,7 @@ def operator_vehicles(
                 "status_label": status_label,
                 "alerts": alerts,
                 "is_available": active_loan is None,
-                "responsible_text": active_loan.borrower_name if active_loan else "Listo para entregar",
+                "responsible_text": active_loan.borrower_name if active_loan else "",
                 "responsible_subtext": (
                     f"Km entrega: {active_loan.delivery_mileage}" if active_loan else ""
                 ),

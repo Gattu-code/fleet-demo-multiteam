@@ -20,8 +20,8 @@
 
 {% if vehicle.has_open_issue %}
 <section class="mb-6 rounded-lg border border-rose-200 bg-rose-50 p-4">
-  <h2 class="font-semibold text-rose-800">Vehiculo con novedad pendiente</h2>
-  <p class="mt-1 text-sm text-rose-700">El historial conserva el prestamo que reporto la novedad. Esta marca solo se cambia desde la edicion del vehiculo.</p>
+  <h2 class="font-semibold text-rose-800">Novedad abierta actual</h2>
+  <p class="mt-1 text-sm text-rose-700">Esta marca refleja una novedad abierta del vehiculo. El historial del prestamo donde aparecio sigue intacto.</p>
 </section>
 {% endif %}
 
@@ -179,13 +179,13 @@
       <input type="hidden" name="loan_category" value="{{ team_default_loan_category_name }}">
       {% endif %}
       <div class="grid gap-4 sm:grid-cols-2">
-        <label class="field sm:col-span-2"><span>Nombre</span><input name="borrower_name" required></label>
+        <label class="field sm:col-span-2"><span>Nombre y apellido</span><input name="borrower_name" required></label>
         <label class="field"><span>Telefono</span><input name="phone"></label>
         <label class="field"><span>Email</span><input name="email" type="email"></label>
         <label class="field"><span>Instagram</span><input name="instagram" placeholder="@usuario"></label>
         <label class="field"><span>Operador entrega</span><input name="delivery_operator"></label>
         <label class="field"><span>Kilometraje entrega</span><input name="delivery_mileage" type="number" min="0" required></label>
-        <label class="field"><span>Combustible</span><input name="fuel_level" placeholder="Full, 3/4, 1/2"></label>
+        <label class="field"><span>Nivel de combustible al entregar</span><input name="fuel_level" placeholder="Full, 3/4, 1/2"></label>
         <label class="field sm:col-span-2">
           <span>Fotos o video del estado de entrega</span>
           <input name="delivery_files" type="file" accept="image/*,video/*" multiple>
@@ -239,7 +239,7 @@
       <div class="grid gap-4 sm:grid-cols-2">
         <label class="field"><span>Kilometraje devolucion</span><input name="return_mileage" type="number" min="0" required></label>
         <label class="field"><span>Operador recepcion</span><input name="return_operator"></label>
-        <label class="field"><span>Combustible</span><input name="fuel_level" placeholder="Full, 3/4, 1/2"></label>
+        <label class="field"><span>Nivel de combustible al devolver</span><input name="fuel_level" placeholder="Full, 3/4, 1/2"></label>
         <label class="field sm:col-span-2">
           <span>Fotos o video de devolucion</span>
           <input name="return_files" type="file" accept="image/*,video/*" multiple>
@@ -319,7 +319,7 @@
                 <dt class="text-zinc-500">Novedades devolucion</dt>
                 <dd>
                   {% if loan.return_has_issues %}
-                  <span class="font-medium text-rose-700">Con novedades</span>
+                  <span class="font-medium text-rose-700">Novedad registrada</span>
                   {% else %}
                   <span class="text-zinc-700">Sin novedades</span>
                   {% endif %}

@@ -15,13 +15,13 @@
 
   <form action="/loans/{{ loan.id }}/edit-delivery" method="post" enctype="multipart/form-data" class="mt-6 space-y-5 rounded-lg border border-zinc-200 bg-white p-6">
     <div class="grid gap-4 sm:grid-cols-2">
-      <label class="field sm:col-span-2"><span>Nombre</span><input name="borrower_name" value="{{ loan.borrower_name }}" required></label>
+      <label class="field sm:col-span-2"><span>Nombre y apellido</span><input name="borrower_name" value="{{ loan.borrower_name }}" required></label>
       <label class="field"><span>Telefono</span><input name="phone" value="{{ loan.phone or '' }}"></label>
       <label class="field"><span>Email</span><input name="email" type="email" value="{{ loan.email or '' }}"></label>
       <label class="field"><span>Instagram</span><input name="instagram" value="{{ loan.instagram or '' }}"></label>
       <label class="field"><span>Operador entrega</span><input name="delivery_operator" value="{{ loan.delivery_operator or '' }}"></label>
       <label class="field"><span>Kilometraje entrega</span><input name="delivery_mileage" type="number" min="0" value="{{ loan.delivery_mileage }}" required></label>
-      <label class="field"><span>Combustible</span><input name="fuel_level" value="{{ loan.fuel_level or '' }}"></label>
+      <label class="field"><span>Nivel de combustible al entregar</span><input name="fuel_level" value="{{ loan.fuel_level or '' }}"></label>
       <label class="field sm:col-span-2">
         <span>Agregar fotos o video del estado de entrega</span>
         <input name="delivery_files" type="file" accept="image/*,video/*" multiple>
