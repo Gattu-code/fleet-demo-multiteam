@@ -516,6 +516,189 @@ def pct(part: int | float, total: int | float) -> float:
     return round((part / total) * 100, 1)
 
 
+def build_dashboard_context(
+    request: Request,
+    period: str | None,
+    team_id: str | None,
+    db: Session,
+    include_idle_rows: bool = False,
+):
+    current_user = request.state.current_user
+    selected_team_id = resolve_team_scope(team_id, current_user)
+    teams = load_visible_teams(db, current_user)
+    vehicle_query = select(Vehicle).options(selectinload(Vehicle.loans), selectinload(Vehicle.team))
+    loan_query = (
+        select(Loan)
+        .options(selectinload(Loan.vehicle), selectinload(Loan.assets))
+        .order_by(Loan.delivered_at.desc())
+    )
+    vehicle_query = apply_team_scope(vehicle_query, current_user, Vehicle.team_id)
+    loan_query = apply_team_scope(loan_query, current_user, Loan.team_id)
+    if is_global_user(current_user) and selected_team_id is not None:
+        vehicle_query = vehicle_query.where(Vehicle.team_id == selected_team_id)
+        loan_query = loan_query.where(Loan.team_id == selected_team_id)
+
+    vehicles = db.scalars(vehicle_query).all()
+    all_loans = db.scalars(loan_query).all()
+    start, end = period_range(period)
+    loans = [
+        loan for loan in all_loans
+        if (start is None or loan.delivered_at >= start)
+        and (end is None or loan.delivered_at < end)
+    ]
+    loan_rows = enrich_loans(loans)
+
+    total_loans = len(loans)
+    active_loans = sum(1 for loan in loans if loan.returned_at is None)
+    returned_loans = total_loans - active_loans
+    active_fleet = [vehicle for vehicle in vehicles if vehicle.status != "retired"]
+    total_vehicles = len(active_fleet)
+    retired_vehicles = sum(1 for vehicle in vehicles if vehicle.status == "retired")
+    available_vehicles = sum(1 for vehicle in active_fleet if vehicle.status == "available")
+    assigned_vehicles = sum(1 for vehicle in active_fleet if vehicle.status == "assigned")
+    issue_loans = sum(1 for loan in loans if loan.return_has_issues)
+    issue_vehicle_count = sum(1 for vehicle in vehicles if vehicle.has_open_issue)
+    signed_with_file = sum(
+        1
+        for loan in loans
+        if loan.agreement_signed
+        and any(asset.category == "agreement" for asset in loan.assets)
+    )
+    signed_without_file = sum(
+        1
+        for loan in loans
+        if loan.agreement_signed
+        and not any(asset.category == "agreement" for asset in loan.assets)
+    )
+    not_signed = sum(1 for loan in loans if not loan.agreement_signed)
+    missing_agreements = sum(
+        1
+        for loan in loans
+        if loan.returned_at is None
+        and not (
+            loan.agreement_signed
+            and any(asset.category == "agreement" for asset in loan.assets)
+        )
+    )
+
+    idle_vehicle_rows = []
+    idle_vehicle_count = 0
+    now = utc_now()
+    for vehicle in vehicles:
+        active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)
+        if vehicle.status != "available" or active_loan is not None:
+            continue
+        last_returned_at = max(
+            (loan.returned_at for loan in vehicle.loans if loan.returned_at is not None),
+            default=None,
+        )
+        baseline = last_returned_at or vehicle.created_at
+        idle_days = max((now - baseline).days, 0)
+        if idle_days <= 10:
+            continue
+        idle_vehicle_count += 1
+        if include_idle_rows:
+            idle_vehicle_rows.append(
+                {
+                    "vehicle": vehicle,
+                    "team_name": vehicle.team.name if vehicle.team else "-",
+                    "idle_days": idle_days,
+                }
+            )
+    if include_idle_rows:
+        idle_vehicle_rows.sort(key=lambda row: row["idle_days"], reverse=True)
+
+    closed_rows = [row for row in loan_rows if row["loan"].returned_at is not None]
+    total_days = sum(row["days_on_loan"] for row in loan_rows)
+    total_km = sum(row["mileage_used"] or 0 for row in closed_rows)
+    avg_days = round(total_days / total_loans, 1) if total_loans else 0
+    avg_km = round(total_km / len(closed_rows), 1) if closed_rows else 0
+
+    by_category = {}
+    issues_by_category = {}
+    for loan in loans:
+        category = loan.loan_category or "Sin categoria"
+        by_category[category] = by_category.get(category, 0) + 1
+        if loan.return_has_issues:
+            issues_by_category[category] = issues_by_category.get(category, 0) + 1
+
+    by_model = {}
+    top_vehicles = {}
+    for row in loan_rows:
+        loan = row["loan"]
+        vehicle = loan.vehicle
+        model = vehicle.model
+        by_model[model] = by_model.get(model, 0) + 1
+        key = f"{vehicle.brand} {vehicle.model} / {vehicle.plate}"
+        stats = top_vehicles.setdefault(
+            key,
+            {"count": 0, "days": 0, "km": 0, "vehicle_id": vehicle.id},
+        )
+        stats["count"] += 1
+        stats["days"] += row["days_on_loan"]
+        stats["km"] += row["mileage_used"] or 0
+
+    by_month = {}
+    for loan in loans:
+        month = loan.delivered_at.strftime("%Y-%m")
+        by_month[month] = by_month.get(month, 0) + 1
+
+    delivery_operators = {}
+    return_operators = {}
+    for loan in loans:
+        if loan.delivery_operator:
+            delivery_operators[loan.delivery_operator] = delivery_operators.get(loan.delivery_operator, 0) + 1
+        if loan.return_operator:
+            return_operators[loan.return_operator] = return_operators.get(loan.return_operator, 0) + 1
+
+    longest_loans = sorted(
+        loan_rows,
+        key=lambda row: row["days_on_loan"],
+        reverse=True,
+    )[:10]
+
+    context = {
+        "request": request,
+        "selected_period": period or "all",
+        "selected_team_id": selected_team_id,
+        "teams": teams,
+        "total_loans": total_loans,
+        "active_loans": active_loans,
+        "returned_loans": returned_loans,
+        "total_vehicles": total_vehicles,
+        "retired_vehicles": retired_vehicles,
+        "available_vehicles": available_vehicles,
+        "assigned_vehicles": assigned_vehicles,
+        "available_rate": pct(available_vehicles, total_vehicles),
+        "issue_loans": issue_loans,
+        "issue_vehicle_count": issue_vehicle_count,
+        "issue_rate": pct(issue_vehicle_count, total_vehicles),
+        "signed_with_file": signed_with_file,
+        "signed_without_file": signed_without_file,
+        "not_signed": not_signed,
+        "missing_agreements": missing_agreements,
+        "missing_agreement_rate": pct(missing_agreements, active_loans),
+        "agreement_complete_rate": pct(signed_with_file, total_loans),
+        "utilization_rate": pct(assigned_vehicles, total_vehicles),
+        "idle_rate": pct(idle_vehicle_count, total_vehicles),
+        "total_km": total_km,
+        "avg_km": avg_km,
+        "avg_days": avg_days,
+        "by_category": sorted(by_category.items(), key=lambda item: item[1], reverse=True),
+        "issues_by_category": sorted(issues_by_category.items(), key=lambda item: item[1], reverse=True),
+        "by_model": sorted(by_model.items(), key=lambda item: item[1], reverse=True),
+        "by_month": sorted(by_month.items()),
+        "top_vehicles": sorted(top_vehicles.items(), key=lambda item: item[1]["count"], reverse=True)[:5],
+        "delivery_operators": sorted(delivery_operators.items(), key=lambda item: item[1], reverse=True)[:6],
+        "return_operators": sorted(return_operators.items(), key=lambda item: item[1], reverse=True)[:6],
+        "longest_loans": longest_loans,
+    }
+    if include_idle_rows:
+        context["idle_vehicle_rows"] = idle_vehicle_rows[:8]
+    context["idle_vehicle_count"] = idle_vehicle_count
+    return context
+
+
 def period_range(period: str | None):
     now = utc_now()
     current_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -624,137 +807,31 @@ def dashboard(
         if team_id:
             operator_target = f"{operator_target}?team_id={team_id}"
         return RedirectResponse(url=operator_target, status_code=303)
-    selected_team_id = resolve_team_scope(team_id, current_user)
-    teams = load_visible_teams(db, current_user)
-    vehicle_query = select(Vehicle).options(selectinload(Vehicle.loans))
-    loan_query = (
-        select(Loan)
-        .options(selectinload(Loan.vehicle), selectinload(Loan.assets))
-        .order_by(Loan.delivered_at.desc())
-    )
-    vehicle_query = apply_team_scope(vehicle_query, current_user, Vehicle.team_id)
-    loan_query = apply_team_scope(loan_query, current_user, Loan.team_id)
-    if is_global_user(current_user) and selected_team_id is not None:
-        vehicle_query = vehicle_query.where(Vehicle.team_id == selected_team_id)
-        loan_query = loan_query.where(Loan.team_id == selected_team_id)
-
-    vehicles = db.scalars(vehicle_query).all()
-    all_loans = db.scalars(loan_query).all()
-    start, end = period_range(period)
-    loans = [
-        loan for loan in all_loans
-        if (start is None or loan.delivered_at >= start)
-        and (end is None or loan.delivered_at < end)
-    ]
-    loan_rows = enrich_loans(loans)
-
-    total_loans = len(loans)
-    active_loans = sum(1 for loan in loans if loan.returned_at is None)
-    returned_loans = total_loans - active_loans
-    active_fleet = [vehicle for vehicle in vehicles if vehicle.status != "retired"]
-    total_vehicles = len(active_fleet)
-    retired_vehicles = sum(1 for vehicle in vehicles if vehicle.status == "retired")
-    available_vehicles = sum(1 for vehicle in active_fleet if vehicle.status == "available")
-    assigned_vehicles = sum(1 for vehicle in active_fleet if vehicle.status == "assigned")
-    issue_loans = sum(1 for loan in loans if loan.return_has_issues)
-    signed_with_file = sum(
-        1
-        for loan in loans
-        if loan.agreement_signed
-        and any(asset.category == "agreement" for asset in loan.assets)
-    )
-    signed_without_file = sum(
-        1
-        for loan in loans
-        if loan.agreement_signed
-        and not any(asset.category == "agreement" for asset in loan.assets)
-    )
-    not_signed = sum(1 for loan in loans if not loan.agreement_signed)
-    missing_agreements = signed_without_file + not_signed
-
-    closed_rows = [row for row in loan_rows if row["loan"].returned_at is not None]
-    total_days = sum(row["days_on_loan"] for row in loan_rows)
-    total_km = sum(row["mileage_used"] or 0 for row in closed_rows)
-    avg_days = round(total_days / total_loans, 1) if total_loans else 0
-    avg_km = round(total_km / len(closed_rows), 1) if closed_rows else 0
-
-    by_category = {}
-    issues_by_category = {}
-    for loan in loans:
-        category = loan.loan_category or "Sin categoria"
-        by_category[category] = by_category.get(category, 0) + 1
-        if loan.return_has_issues:
-            issues_by_category[category] = issues_by_category.get(category, 0) + 1
-
-    by_model = {}
-    top_vehicles = {}
-    for row in loan_rows:
-        loan = row["loan"]
-        vehicle = loan.vehicle
-        model = vehicle.model
-        by_model[model] = by_model.get(model, 0) + 1
-        key = f"{vehicle.brand} {vehicle.model} / {vehicle.plate}"
-        stats = top_vehicles.setdefault(
-            key,
-            {"count": 0, "days": 0, "km": 0, "vehicle_id": vehicle.id},
-        )
-        stats["count"] += 1
-        stats["days"] += row["days_on_loan"]
-        stats["km"] += row["mileage_used"] or 0
-
-    by_month = {}
-    for loan in loans:
-        month = loan.delivered_at.strftime("%Y-%m")
-        by_month[month] = by_month.get(month, 0) + 1
-
-    delivery_operators = {}
-    return_operators = {}
-    for loan in loans:
-        if loan.delivery_operator:
-            delivery_operators[loan.delivery_operator] = delivery_operators.get(loan.delivery_operator, 0) + 1
-        if loan.return_operator:
-            return_operators[loan.return_operator] = return_operators.get(loan.return_operator, 0) + 1
-
-    longest_loans = sorted(
-        loan_rows,
-        key=lambda row: row["days_on_loan"],
-        reverse=True,
-    )[:8]
-
+    context = build_dashboard_context(request, period, team_id, db, include_idle_rows=False)
     return templates.TemplateResponse(
         "dashboard.html",
-        {
-            "request": request,
-            "selected_period": period or "all",
-            "selected_team_id": selected_team_id,
-            "teams": teams,
-            "total_loans": total_loans,
-            "active_loans": active_loans,
-            "returned_loans": returned_loans,
-            "total_vehicles": total_vehicles,
-            "retired_vehicles": retired_vehicles,
-            "available_vehicles": available_vehicles,
-            "assigned_vehicles": assigned_vehicles,
-            "issue_loans": issue_loans,
-            "issue_rate": pct(issue_loans, returned_loans),
-            "signed_with_file": signed_with_file,
-            "signed_without_file": signed_without_file,
-            "not_signed": not_signed,
-            "missing_agreements": missing_agreements,
-            "missing_agreement_rate": pct(missing_agreements, total_loans),
-            "agreement_complete_rate": pct(signed_with_file, total_loans),
-            "total_km": total_km,
-            "avg_km": avg_km,
-            "avg_days": avg_days,
-            "by_category": sorted(by_category.items(), key=lambda item: item[1], reverse=True),
-            "issues_by_category": sorted(issues_by_category.items(), key=lambda item: item[1], reverse=True),
-            "by_model": sorted(by_model.items(), key=lambda item: item[1], reverse=True),
-            "by_month": sorted(by_month.items()),
-            "top_vehicles": sorted(top_vehicles.items(), key=lambda item: item[1]["count"], reverse=True)[:8],
-            "delivery_operators": sorted(delivery_operators.items(), key=lambda item: item[1], reverse=True)[:6],
-            "return_operators": sorted(return_operators.items(), key=lambda item: item[1], reverse=True)[:6],
-            "longest_loans": longest_loans,
-        },
+        context,
+    )
+
+
+@app.get("/operations")
+def operations_dashboard(
+    request: Request,
+    period: str | None = "all",
+    team_id: str | None = None,
+    db: Session = Depends(get_db),
+):
+    current_user = request.state.current_user
+    if current_user is not None and current_user.role == "operator":
+        flash_message(request, "info", "Has sido enviado al panel operativo.")
+        operator_target = "/operator/vehicles"
+        if team_id:
+            operator_target = f"{operator_target}?team_id={team_id}"
+        return RedirectResponse(url=operator_target, status_code=303)
+    context = build_dashboard_context(request, period, team_id, db, include_idle_rows=True)
+    return templates.TemplateResponse(
+        "operations/dashboard.html",
+        context,
     )
 
 
