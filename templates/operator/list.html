@@ -46,7 +46,7 @@
           <th class="px-4 py-3">Vehiculo</th>
           <th class="px-4 py-3">Placa</th>
           <th class="px-4 py-3">Estado</th>
-          <th class="px-4 py-3">Responsable / uso</th>
+          <th class="px-4 py-3">Cliente / Usuario</th>
           <th class="px-4 py-3">Alertas</th>
           <th class="px-4 py-3 text-right">Accion</th>
         </tr>
@@ -69,8 +69,10 @@
             </span>
           </td>
           <td class="px-4 py-3">
+            {% if not row.is_available %}
             <div class="font-medium">{{ row.responsible_text }}</div>
-            {% if row.responsible_subtext %}
+            {% endif %}
+            {% if row.responsible_subtext and not row.is_available %}
             <div class="text-xs text-zinc-500">{{ row.responsible_subtext }}</div>
             {% endif %}
           </td>
