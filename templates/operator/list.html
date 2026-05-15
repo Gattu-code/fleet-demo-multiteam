@@ -1,61 +1,106 @@
 {% extends "base.html" %}
-{% block title %}Operador logistico | Gestión de flotas (Marketing) :: Demo{% endblock %}
+{% block title %}Operador logistico | Gestion de flotas (Marketing) :: Demo{% endblock %}
+
+{% macro alert_chip(label, tone="rose") -%}
+  <span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold {% if tone == 'rose' %}bg-rose-100 text-rose-700{% elif tone == 'amber' %}bg-amber-100 text-amber-700{% else %}bg-zinc-100 text-zinc-700{% endif %}">
+    {{ label }}
+  </span>
+{%- endmacro %}
 
 {% block content %}
 <div class="mb-6">
   <h1 class="text-2xl font-semibold tracking-tight">Operacion logistica</h1>
-  <p class="mt-1 text-sm text-zinc-600">Vista de entrega y recepcion. Solo muestra el estado actual del vehiculo.</p>
+  <p class="mt-1 text-sm text-zinc-600">Lista de accion rapida para entregar y recibir vehiculos, con estado y alertas separadas.</p>
 </div>
 
-<div class="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
-  <table class="w-full min-w-[760px] text-left text-sm">
-    <thead class="border-b border-zinc-200 bg-zinc-100 text-xs uppercase text-zinc-600">
-      <tr>
-        <th class="px-4 py-3">Vehiculo</th>
-        <th class="px-4 py-3">Placa</th>
-        <th class="px-4 py-3">Estado</th>
-        <th class="px-4 py-3">Actual</th>
-        <th class="px-4 py-3">Novedad</th>
-        <th class="px-4 py-3"></th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-zinc-200">
-      {% for row in vehicle_rows %}
-      {% set vehicle = row.vehicle %}
-      {% set active_loan = row.active_loan %}
-      {% set display_status = "assigned" if active_loan else vehicle.status %}
-      <tr>
-        <td class="px-4 py-3">
-          <div class="font-medium">{{ vehicle.brand }} {{ vehicle.model }}</div>
-          <div class="text-xs text-zinc-500">{{ vehicle.color or "-" }}{% if vehicle.year %} / {{ vehicle.year }}{% endif %}</div>
-        </td>
-        <td class="px-4 py-3">{{ vehicle.plate }}</td>
-        <td class="px-4 py-3">
-          <span class="status-pill status-{{ display_status }}">
-            {% if display_status == "available" %}Disponible{% elif display_status == "assigned" %}Asignado{% elif display_status == "retired" %}Retirado{% else %}{{ display_status }}{% endif %}
-          </span>
-        </td>
-        <td class="px-4 py-3">
-          {% if active_loan %}
-          <div class="font-medium">{{ active_loan.borrower_name }}</div>
-          <div class="text-xs text-zinc-500">Km entrega: {{ active_loan.delivery_mileage }}</div>
-          {% else %}
-          <span class="text-zinc-500">Disponible para entrega</span>
-          {% endif %}
-        </td>
-        <td class="px-4 py-3">
-          {% if vehicle.has_open_issue %}
-          <span class="rounded-full bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700">Pendiente</span>
-          {% else %}
-          <span class="text-zinc-400">-</span>
-          {% endif %}
-        </td>
-        <td class="px-4 py-3 text-right">
-          <a href="/operator/vehicles/{{ vehicle.id }}{% if request.query_params.get('team_id') %}?team_id={{ request.query_params.get('team_id') }}{% endif %}" class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Abrir</a>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+<form method="get" action="/operator/vehicles" class="mb-6 rounded-lg border border-zinc-200 bg-white p-4">
+  <div class="flex flex-wrap items-end gap-3">
+    <label class="field min-w-[220px] flex-1">
+      <span>Buscar por placa</span>
+      <input name="plate" value="{{ selected_plate }}" placeholder="ABC123">
+    </label>
+    {% if request.query_params.get("team_id") %}
+    <input type="hidden" name="team_id" value="{{ request.query_params.get('team_id') }}">
+    {% endif %}
+    <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Buscar</button>
+    {% if selected_plate %}
+    <a href="/operator/vehicles{% if request.query_params.get('team_id') %}?team_id={{ request.query_params.get('team_id') }}{% endif %}" class="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Limpiar</a>
+    {% endif %}
+  </div>
+</form>
+
+<section class="rounded-lg border border-zinc-200 bg-white">
+  <div class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3">
+    <div>
+      <h2 class="text-sm font-semibold uppercase text-zinc-500">Vehiculos operativos</h2>
+      <p class="mt-1 text-xs text-zinc-500">Disponible o prestado, con alertas visibles solo cuando aportan contexto.</p>
+    </div>
+    <span class="rounded-full bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-700">{{ vehicle_rows|length }}</span>
+  </div>
+
+  {% if vehicle_rows %}
+  <div class="overflow-x-auto">
+    <table class="w-full min-w-[840px] text-left text-sm">
+      <thead class="border-b border-zinc-200 bg-zinc-100 text-xs uppercase text-zinc-600">
+        <tr>
+          <th class="px-4 py-3">Vehiculo</th>
+          <th class="px-4 py-3">Placa</th>
+          <th class="px-4 py-3">Estado</th>
+          <th class="px-4 py-3">Responsable / uso</th>
+          <th class="px-4 py-3">Alertas</th>
+          <th class="px-4 py-3 text-right">Accion</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-zinc-200">
+        {% for row in vehicle_rows %}
+        {% set vehicle = row.vehicle %}
+        {% set active_loan = row.active_loan %}
+        <tr class="{% if row.alerts %}bg-rose-50/20{% endif %}">
+          <td class="px-4 py-3">
+            <div class="font-medium">{{ vehicle.brand }} {{ vehicle.model }}</div>
+            <div class="text-xs text-zinc-500">{{ vehicle.color or "-" }}{% if vehicle.year %} / {{ vehicle.year }}{% endif %}</div>
+          </td>
+          <td class="px-4 py-3">
+            <div class="font-medium">{{ vehicle.plate }}</div>
+          </td>
+          <td class="px-4 py-3">
+            <span class="status-pill {% if row.is_available %}status-available{% else %}status-assigned{% endif %}">
+              {{ row.status_label }}
+            </span>
+          </td>
+          <td class="px-4 py-3">
+            <div class="font-medium">{{ row.responsible_text }}</div>
+            {% if row.responsible_subtext %}
+            <div class="text-xs text-zinc-500">{{ row.responsible_subtext }}</div>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3">
+            <div class="flex flex-wrap gap-2">
+              {% for alert in row.alerts %}
+              {{ alert_chip(alert.label, alert.tone) }}
+              {% endfor %}
+              {% if not row.alerts %}
+              <span class="text-zinc-400">-</span>
+              {% endif %}
+            </div>
+          </td>
+          <td class="px-4 py-3 text-right">
+            <div class="flex flex-wrap justify-end gap-2">
+              {% if row.is_available %}
+              <a href="/operator/vehicles/{{ vehicle.id }}{{ operator_query_suffix }}" class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Entregar</a>
+              {% else %}
+              <a href="/operator/vehicles/{{ vehicle.id }}{{ operator_query_suffix }}" class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Registrar devolucion</a>
+              {% endif %}
+              <a href="/operator/vehicles/{{ vehicle.id }}{{ operator_query_suffix }}" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Ver operacion</a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="px-4 py-6 text-sm text-zinc-600">No hay vehiculos para mostrar.</div>
+  {% endif %}
+</section>
 {% endblock %}

@@ -11,20 +11,37 @@
 <section class="rounded-lg border border-zinc-200 bg-white p-6">
   <div class="flex flex-wrap items-center justify-between gap-3">
     <div>
-      <h2 class="text-lg font-semibold">Parametros operativos</h2>
-      <p class="text-sm text-zinc-600">Esta pantalla controla reglas suaves de operacion por equipo.</p>
+      <h2 class="text-lg font-semibold">Datos del equipo</h2>
+      <p class="text-sm text-zinc-600">Edita nombre y estado desde aqui. La configuracion operativa sigue en esta misma pantalla.</p>
     </div>
-    <div class="flex flex-wrap gap-2 text-xs font-semibold">
-      <span class="rounded-full {% if config.allows_transfers %}bg-emerald-100 text-emerald-700{% else %}bg-rose-100 text-rose-700{% endif %} px-2 py-1">
-        {% if config.allows_transfers %}Traslados permitidos{% else %}Traslados bloqueados{% endif %}
-      </span>
-      <span class="rounded-full {% if config.requires_delivery_photos %}bg-amber-100 text-amber-800{% else %}bg-zinc-100 text-zinc-700{% endif %} px-2 py-1">
-        Entrega {% if config.requires_delivery_photos %}con fotos{% else %}sin fotos obligatorias{% endif %}
-      </span>
-      <span class="rounded-full {% if config.requires_return_photos %}bg-amber-100 text-amber-800{% else %}bg-zinc-100 text-zinc-700{% endif %} px-2 py-1">
-        Devolucion {% if config.requires_return_photos %}con fotos{% else %}sin fotos obligatorias{% endif %}
-      </span>
-    </div>
+  </div>
+
+  <div class="mt-6 rounded-md border border-zinc-200 bg-zinc-50 p-4">
+    <form action="/admin/teams/{{ team.id }}" method="post" class="grid gap-4 md:grid-cols-[1fr_auto_auto] md:items-end">
+      <label class="field">
+        <span>Nombre</span>
+        <input name="name" value="{{ team.name }}" required>
+      </label>
+      <label class="flex items-end gap-2 text-sm font-medium">
+        <input type="checkbox" name="is_active" value="true" {% if team.is_active %}checked{% endif %} class="h-4 w-4 rounded border-zinc-300">
+        Activo
+      </label>
+      <div class="flex items-end">
+        <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800" type="submit">Guardar equipo</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="mt-6 flex flex-wrap gap-2 text-xs font-semibold">
+    <span class="rounded-full {% if config.allows_transfers %}bg-emerald-100 text-emerald-700{% else %}bg-rose-100 text-rose-700{% endif %} px-2 py-1">
+      {% if config.allows_transfers %}Traslados permitidos{% else %}Traslados bloqueados{% endif %}
+    </span>
+    <span class="rounded-full {% if config.requires_delivery_photos %}bg-amber-100 text-amber-800{% else %}bg-zinc-100 text-zinc-700{% endif %} px-2 py-1">
+      Entrega {% if config.requires_delivery_photos %}con fotos{% else %}sin fotos obligatorias{% endif %}
+    </span>
+    <span class="rounded-full {% if config.requires_return_photos %}bg-amber-100 text-amber-800{% else %}bg-zinc-100 text-zinc-700{% endif %} px-2 py-1">
+      Devolucion {% if config.requires_return_photos %}con fotos{% else %}sin fotos obligatorias{% endif %}
+    </span>
   </div>
 
   <form action="/admin/teams/{{ team.id }}/config" method="post" class="mt-6 grid gap-5">

@@ -389,6 +389,11 @@ def enrich_loans(loans: list[Loan]):
     ]
 
 
+def build_query_suffix(params: dict[str, str | None]):
+    query = {key: value for key, value in params.items() if value}
+    return f"?{urlencode(query)}" if query else ""
+
+
 def load_teams(db: Session, active_only: bool = True):
     query = select(Team)
     if active_only:
@@ -1316,29 +1321,69 @@ def loan_detail(loan_id: int, request: Request, db: Session = Depends(get_db)):
 
 
 @app.get("/operator/vehicles")
-def operator_vehicles(request: Request, db: Session = Depends(get_db)):
+def operator_vehicles(
+    request: Request,
+    plate: str | None = None,
+    db: Session = Depends(get_db),
+):
     current_user = request.state.current_user
+    selected_plate = clean_optional(plate or request.query_params.get("plate"))
     vehicle_query = (
         select(Vehicle)
-        .options(selectinload(Vehicle.loans))
+        .options(
+            selectinload(Vehicle.loans).selectinload(Loan.assets),
+            selectinload(Vehicle.team).selectinload(Team.config).selectinload(TeamConfig.default_loan_category),
+        )
         .where(Vehicle.status != "retired")
         .order_by(Vehicle.status.desc(), Vehicle.created_at.desc())
     )
     vehicle_query = apply_team_scope(vehicle_query, current_user, Vehicle.team_id)
+    if selected_plate:
+        vehicle_query = vehicle_query.where(func.lower(Vehicle.plate).like(f"%{selected_plate.lower()}%"))
     vehicles = db.scalars(vehicle_query).all()
-    vehicle_rows = [
+    vehicle_rows = []
+    for vehicle in vehicles:
+        active_loan = next((loan for loan in vehicle.loans if loan.returned_at is None), None)
+        team_config = load_team_config(db, vehicle.team)
+        alerts = []
+        if vehicle.has_open_issue or (active_loan and active_loan.return_has_issues):
+            alerts.append({"label": "Con novedad", "tone": "rose"})
+        if team_config and team_config.requires_delivery_photos and not active_loan:
+            alerts.append({"label": "Fotos entrega requeridas", "tone": "amber"})
+        if team_config and team_config.requires_return_photos and active_loan:
+            alerts.append({"label": "Fotos devolucion requeridas", "tone": "amber"})
+        if active_loan:
+            agreement_asset = next((asset for asset in active_loan.assets if asset.category == "agreement"), None)
+            if active_loan.agreement_signed and agreement_asset is None:
+                alerts.append({"label": "Comodato pendiente", "tone": "amber"})
+        status_label = "Prestado" if active_loan else "Disponible"
+        vehicle_rows.append(
+            {
+                "vehicle": vehicle,
+                "active_loan": active_loan,
+                "status_label": status_label,
+                "alerts": alerts,
+                "is_available": active_loan is None,
+                "responsible_text": active_loan.borrower_name if active_loan else "Listo para entregar",
+                "responsible_subtext": (
+                    f"Km entrega: {active_loan.delivery_mileage}" if active_loan else ""
+                ),
+            }
+        )
+    operator_query_suffix = build_query_suffix(
         {
-            "vehicle": vehicle,
-            "active_loan": next(
-                (loan for loan in vehicle.loans if loan.returned_at is None),
-                None,
-            ),
+            "team_id": request.query_params.get("team_id"),
+            "plate": selected_plate,
         }
-        for vehicle in vehicles
-    ]
+    )
     return templates.TemplateResponse(
         "operator/list.html",
-        {"request": request, "vehicle_rows": vehicle_rows},
+        {
+            "request": request,
+            "vehicle_rows": vehicle_rows,
+            "selected_plate": selected_plate or "",
+            "operator_query_suffix": operator_query_suffix,
+        },
     )
 
 
@@ -1375,6 +1420,12 @@ def operator_vehicle_detail(
     active_checklist_item_map = {
         item.checklist_id: item for item in active_loan.checklist_items
     } if active_loan else {}
+    operator_query_suffix = build_query_suffix(
+        {
+            "team_id": request.query_params.get("team_id"),
+            "plate": request.query_params.get("plate"),
+        }
+    )
     return templates.TemplateResponse(
         "operator/detail.html",
         {
@@ -1387,6 +1438,7 @@ def operator_vehicle_detail(
             "active_loan_asset_groups": group_loan_assets(active_loan),
             "operational_checklists": load_loan_operational_context(db, active_loan) if active_loan else {"delivery_checklists": [], "return_checklists": [], "loan_checklist_items": [], "loan_issues": []},
             "active_checklist_item_map": active_checklist_item_map,
+            "operator_query_suffix": operator_query_suffix,
         },
     )
 
