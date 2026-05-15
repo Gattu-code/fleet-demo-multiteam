@@ -20,9 +20,6 @@
       <span class="rounded-full {% if team_config.requires_return_photos %}bg-amber-100 text-amber-800{% else %}bg-zinc-100 text-zinc-700{% endif %} px-2 py-1">
         Fotos devolucion {% if team_config.requires_return_photos %}requeridas{% else %}opcionales{% endif %}
       </span>
-      <span class="rounded-full {% if team_default_loan_category_name %}bg-sky-100 text-sky-700{% else %}bg-zinc-100 text-zinc-700{% endif %} px-2 py-1">
-        Categoria por defecto {% if team_default_loan_category_name %}{{ team_default_loan_category_name }}{% else %}sin definir{% endif %}
-      </span>
     </div>
   </section>
   {% endif %}

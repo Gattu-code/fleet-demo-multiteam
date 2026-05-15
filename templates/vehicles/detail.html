@@ -41,9 +41,6 @@
     <span class="rounded-full {% if team_config.requires_return_photos %}bg-amber-100 text-amber-800{% else %}bg-zinc-100 text-zinc-700{% endif %} px-2 py-1">
       Devolucion {% if team_config.requires_return_photos %}con fotos requeridas{% else %}sin fotos obligatorias{% endif %}
     </span>
-    <span class="rounded-full {% if team_default_loan_category_name %}bg-sky-100 text-sky-700{% else %}bg-zinc-100 text-zinc-700{% endif %} px-2 py-1">
-      Categoria por defecto {% if team_default_loan_category_name %}{{ team_default_loan_category_name }}{% else %}sin definir{% endif %}
-    </span>
   </div>
 </section>
 {% endif %}
@@ -175,14 +172,23 @@
       {% if team_id %}
       <input type="hidden" name="team_id" value="{{ team_id }}">
       {% endif %}
-      {% if team_default_loan_category_name %}
-      <input type="hidden" name="loan_category" value="{{ team_default_loan_category_name }}">
-      {% endif %}
       <div class="grid gap-4 sm:grid-cols-2">
         <label class="field sm:col-span-2"><span>Nombre y apellido</span><input name="borrower_name" required></label>
         <label class="field"><span>Telefono</span><input name="phone"></label>
         <label class="field"><span>Email</span><input name="email" type="email"></label>
         <label class="field"><span>Instagram</span><input name="instagram" placeholder="@usuario"></label>
+        <label class="field sm:col-span-2">
+          <span>Categoria de prestamo</span>
+          <select name="loan_category">
+            <option value="" {% if not team_default_loan_category_name %}selected{% endif %}>Sin categoria</option>
+            {% for category in loan_categories %}
+            <option value="{{ category.name }}" {% if team_default_loan_category_name == category.name %}selected{% endif %}>{{ category.name }}</option>
+            {% endfor %}
+          </select>
+          {% if team_default_loan_category_name %}
+          <span class="mt-1 block text-xs text-zinc-500">Sugerida por configuracion del equipo.</span>
+          {% endif %}
+        </label>
         <label class="field"><span>Operador entrega</span><input name="delivery_operator"></label>
         <label class="field"><span>Kilometraje entrega</span><input name="delivery_mileage" type="number" min="0" required></label>
         <label class="field"><span>Nivel de combustible al entregar</span><input name="fuel_level" placeholder="Full, 3/4, 1/2"></label>

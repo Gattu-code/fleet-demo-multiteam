@@ -35,10 +35,11 @@
     </select>
   </label>
   <label class="field">
-    <span>Comodato</span>
+    <span>Estado comodato</span>
     <select name="agreement" onchange="this.form.submit()">
       <option value="" {% if not request.query_params.get("agreement", selected_agreement) %}selected{% endif %}>Todos</option>
-      <option value="missing" {% if request.query_params.get("agreement", selected_agreement) == "missing" %}selected{% endif %}>Con faltante</option>
+      <option value="attached" {% if request.query_params.get("agreement", selected_agreement) == "attached" %}selected{% endif %}>Comodato adjunto</option>
+      <option value="pending" {% if request.query_params.get("agreement", selected_agreement) in ["pending", "missing"] %}selected{% endif %}>Comodato pendiente</option>
     </select>
   </label>
   <label class="field">
@@ -66,7 +67,7 @@
         <th class="px-4 py-3">Fechas</th>
         <th class="px-4 py-3">Uso</th>
         <th class="px-4 py-3">Novedad</th>
-        <th class="px-4 py-3">Comodato</th>
+        <th class="px-4 py-3">Estado comodato</th>
         <th class="px-4 py-3"></th>
       </tr>
     </thead>

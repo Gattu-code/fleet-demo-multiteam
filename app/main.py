@@ -1286,7 +1286,9 @@ def list_loans(
             None,
         )
         has_complete_agreement = loan.agreement_signed and agreement_asset is not None
-        if agreement == "missing" and has_complete_agreement:
+        if agreement in {"missing", "pending"} and has_complete_agreement:
+            continue
+        if agreement == "attached" and not has_complete_agreement:
             continue
 
         row = enrich_loans([loan])[0]
@@ -1460,6 +1462,7 @@ def operator_vehicle_detail(
             "historical_team_name": active_loan.team.name if active_loan and active_loan.team else "Sin equipo",
             "team_config": team_config,
             "team_default_loan_category_name": default_category_name,
+            "loan_categories": load_loan_categories(db),
             "active_loan_asset_groups": group_loan_assets(active_loan),
             "operational_checklists": load_loan_operational_context(db, active_loan) if active_loan else {"delivery_checklists": [], "return_checklists": [], "loan_checklist_items": [], "loan_issues": []},
             "active_checklist_item_map": active_checklist_item_map,
@@ -1555,6 +1558,7 @@ def edit_vehicle(
             "active_loan": active_loan,
             "team_config": team_config,
             "team_default_loan_category_name": default_category_name,
+            "loan_categories": load_loan_categories(db),
         },
     )
 
@@ -1666,6 +1670,7 @@ def vehicle_detail(
             "can_transfer": can_transfer_vehicle(current_user, vehicle),
             "team_config": team_config,
             "team_default_loan_category_name": default_category_name,
+            "loan_categories": load_loan_categories(db),
             "active_loan_asset_groups": group_loan_assets(active_loan),
             "operational_checklists": load_loan_operational_context(db, active_loan) if active_loan else {"delivery_checklists": [], "return_checklists": [], "loan_checklist_items": [], "loan_issues": []},
             "active_checklist_item_map": active_checklist_item_map,
@@ -1800,6 +1805,7 @@ def deliver_vehicle(
     default_category_name = None
     if team_config and team_config.default_loan_category and team_config.default_loan_category.is_active:
         default_category_name = team_config.default_loan_category.name
+    chosen_category = clean_optional(loan_category) or default_category_name
 
     if team_config and team_config.requires_delivery_photos and not has_uploaded_files(delivery_files):
         flash_message(
@@ -1824,7 +1830,7 @@ def deliver_vehicle(
         fuel_level=clean_optional(fuel_level),
         notes=clean_optional(notes),
         agreement_signed=agreement_signed,
-        loan_category=clean_optional(loan_category) or default_category_name,
+        loan_category=chosen_category,
     )
     vehicle.status = "assigned"
     db.add(loan)
@@ -1856,9 +1862,20 @@ def edit_delivery(
         flash_message(request, "error", "El prestamo no existe.")
         return RedirectResponse(url="/vehicles", status_code=303)
 
+    team_config = load_team_config(db, loan.vehicle.team)
+    default_category_name = None
+    if team_config and team_config.default_loan_category and team_config.default_loan_category.is_active:
+        default_category_name = team_config.default_loan_category.name
+
     return templates.TemplateResponse(
         "loans/edit_delivery.html",
-        {"request": request, "loan": loan},
+        {
+            "request": request,
+            "loan": loan,
+            "loan_categories": load_loan_categories(db),
+            "team_default_loan_category_name": default_category_name,
+            "selected_loan_category_name": loan.loan_category or default_category_name,
+        },
     )
 
 
@@ -1875,6 +1892,7 @@ def update_delivery(
     fuel_level: str | None = Form(None),
     notes: str | None = Form(None),
     agreement_signed: bool = Form(False),
+    loan_category: str | None = Form(None),
     delivery_files: list[UploadFile] = File(default=[]),
     agreement_file: UploadFile | None = File(None),
     current_user: User = Depends(require_user),
@@ -1896,6 +1914,9 @@ def update_delivery(
         return RedirectResponse(url="/vehicles", status_code=303)
 
     team_config = load_team_config(db, loan.vehicle.team)
+    default_category_name = None
+    if team_config and team_config.default_loan_category and team_config.default_loan_category.is_active:
+        default_category_name = team_config.default_loan_category.name
     if team_config and team_config.requires_delivery_photos and not (
         has_uploaded_files(delivery_files)
         or any(asset.category == "delivery" for asset in loan.assets)
@@ -1916,6 +1937,7 @@ def update_delivery(
     loan.fuel_level = clean_optional(fuel_level)
     loan.notes = clean_optional(notes)
     loan.agreement_signed = agreement_signed
+    loan.loan_category = clean_optional(loan_category) or default_category_name
     add_loan_assets(db, loan, delivery_files, "delivery")
     add_loan_assets(db, loan, [agreement_file] if agreement_file else [], "agreement")
     db.commit()

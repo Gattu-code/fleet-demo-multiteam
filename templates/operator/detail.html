@@ -40,9 +40,6 @@
     <span class="rounded-full {% if team_config.requires_return_photos %}bg-amber-100 text-amber-800{% else %}bg-zinc-100 text-zinc-700{% endif %} px-2 py-1">
       Devolucion {% if team_config.requires_return_photos %}con fotos requeridas{% else %}sin fotos obligatorias{% endif %}
     </span>
-    <span class="rounded-full {% if team_default_loan_category_name %}bg-sky-100 text-sky-700{% else %}bg-zinc-100 text-zinc-700{% endif %} px-2 py-1">
-      Categoria por defecto {% if team_default_loan_category_name %}{{ team_default_loan_category_name }}{% else %}sin definir{% endif %}
-    </span>
   </div>
 </section>
 {% endif %}
@@ -124,24 +121,16 @@
 
 {% if vehicle.status == "available" and not active_loan %}
   <h2 class="text-lg font-semibold">Registrar entrega</h2>
-    {% if team_config and team_config.requires_delivery_photos %}
-    <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-      Este equipo requiere fotos de entrega.
-      <span class="mt-1 block text-xs text-amber-800">Adjunta al menos un archivo de entrega antes de registrar.</span>
-    </div>
-    {% endif %}
-  {% if team_config and team_config.default_loan_category and team_config.default_loan_category.is_active %}
-  <div class="mt-3 rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-    Categoria por defecto del equipo: <strong>{{ team_config.default_loan_category.name }}</strong>.
+  {% if team_config and team_config.requires_delivery_photos %}
+  <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+    Este equipo requiere fotos de entrega.
+    <span class="mt-1 block text-xs text-amber-800">Adjunta al menos un archivo de entrega antes de registrar.</span>
   </div>
   {% endif %}
   <form action="/vehicles/{{ vehicle.id }}/deliver" method="post" enctype="multipart/form-data" class="mt-6 space-y-6">
     <input type="hidden" name="redirect_to" value="operator">
     {% if team_id %}
     <input type="hidden" name="team_id" value="{{ team_id }}">
-    {% endif %}
-    {% if team_default_loan_category_name %}
-    <input type="hidden" name="loan_category" value="{{ team_default_loan_category_name }}">
     {% endif %}
 
     <section>
@@ -170,6 +159,18 @@
         <label class="field"><span>Telefono</span><input name="phone"></label>
         <label class="field"><span>Email</span><input name="email" type="email"></label>
         <label class="field"><span>Instagram</span><input name="instagram" placeholder="@usuario"></label>
+        <label class="field sm:col-span-2">
+          <span>Categoria de prestamo</span>
+          <select name="loan_category">
+            <option value="" {% if not team_default_loan_category_name %}selected{% endif %}>Sin categoria</option>
+            {% for category in loan_categories %}
+            <option value="{{ category.name }}" {% if team_default_loan_category_name == category.name %}selected{% endif %}>{{ category.name }}</option>
+            {% endfor %}
+          </select>
+          {% if team_default_loan_category_name %}
+          <span class="mt-1 block text-xs text-zinc-500">Sugerida por configuracion del equipo.</span>
+          {% endif %}
+        </label>
       </div>
     </section>
 
@@ -207,11 +208,6 @@
   <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
     Este equipo requiere fotos de devolucion.
     <span class="mt-1 block text-xs text-amber-800">Adjunta al menos un archivo de devolucion antes de registrar.</span>
-  </div>
-  {% endif %}
-  {% if team_config and team_config.default_loan_category and team_config.default_loan_category.is_active %}
-  <div class="mt-3 rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-    Categoria por defecto del equipo: <strong>{{ team_config.default_loan_category.name }}</strong>.
   </div>
   {% endif %}
 
