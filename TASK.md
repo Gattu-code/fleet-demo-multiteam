@@ -1,31 +1,49 @@
-# TASKS
+# Roadmap
 
 ## Fase 1
-Hecha y estabilizada.
+
+Hecha y cerrada.
 
 - autenticacion basica con sesiones
 - roles demo
-- equipos y asignacion de vehiculos
 - scopes por equipo
-- vista operativa para operator
+- vista operativa para `operator`
 - transferencias entre equipos
-- trazabilidad historica con `loan.team_id`
+- trazabilidad historica con `Loan.team_id`
 
-## Fase 2
-Pendiente de implementacion.
+## Fase 2A
 
-- datos maestros y configuracion administrativa
-- catalogos de categorias de prestamo
-- estados y motivos operativos
-- configuracion por equipo
-- administracion de usuarios y equipos
-- ajuste fino de pantallas administrativas
+Hecha y cerrada.
 
-## Fase 3
-Pendiente de definicion.
+- catalogo administrable de categorias de prestamo
+- administracion basica de equipos
+- administracion basica de usuarios
+- `TeamConfig` por equipo
 
-- campanas
+## Fase 2B
+
+Avanzada y en estabilizacion.
+
+- checklist operativo
+- evidencia agrupada por tipo
+- novedades estructuradas
+- validaciones operativas por fotos
+- resumen historico y operativo en vehiculo, prestamo y operator
+- limpieza UX de formularios y pantallas operativas
+- normalizacion de labels y estados compactos para comodato
+- refinamiento de la vista operativa de `operator`
+
+## Siguientes pendientes
+
+- UX integral de `operator`
+- rediseno de la tabla de `loans`
+- creacion separada de equipos como flujo dedicado
+- operator multi-equipo
+- Fase 2C: KPIs operativos
+
+## Futuro lejano
+
 - aprobaciones opcionales
-- PDF dinamico
 - notificaciones
+- PDF dinamico
 - integraciones

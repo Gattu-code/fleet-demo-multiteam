@@ -5,7 +5,7 @@
 <div class="max-w-3xl">
   <a href="/vehicles/{{ vehicle.id }}" class="text-sm text-zinc-600 hover:text-zinc-950">Volver</a>
   <h1 class="mt-2 text-2xl font-semibold tracking-tight">Editar vehiculo</h1>
-  <p class="mt-1 text-sm text-zinc-600">{{ vehicle.brand }} {{ vehicle.model }} / {{ vehicle.plate }}</p>
+  <p class="mt-1 text-sm text-zinc-600">{{ vehicle.brand }} {{ vehicle.model }} / {{ vehicle.plate | format_plate }}</p>
 
   {% if team_config %}
   <section class="mt-6 rounded-lg border border-zinc-200 bg-white p-4">
@@ -72,7 +72,7 @@
       </label>
       <label class="field">
         <span>Placa</span>
-        <input name="plate" value="{{ vehicle.plate }}" required>
+        <input name="plate" value="{{ vehicle.plate | format_plate }}" placeholder="ABC-123" required>
       </label>
       <label class="field sm:col-span-2">
         <span>Color</span>

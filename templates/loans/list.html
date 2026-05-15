@@ -38,8 +38,8 @@
     <span>Estado comodato</span>
     <select name="agreement" onchange="this.form.submit()">
       <option value="" {% if not request.query_params.get("agreement", selected_agreement) %}selected{% endif %}>Todos</option>
-      <option value="attached" {% if request.query_params.get("agreement", selected_agreement) == "attached" %}selected{% endif %}>Comodato adjunto</option>
-      <option value="pending" {% if request.query_params.get("agreement", selected_agreement) in ["pending", "missing"] %}selected{% endif %}>Comodato pendiente</option>
+      <option value="attached" {% if request.query_params.get("agreement", selected_agreement) == "attached" %}selected{% endif %}>Completo</option>
+      <option value="pending" {% if request.query_params.get("agreement", selected_agreement) in ["pending", "missing"] %}selected{% endif %}>Pendiente</option>
     </select>
   </label>
   <label class="field">
@@ -83,7 +83,7 @@
         </td>
         <td class="px-4 py-3">
           <div class="font-medium">{{ vehicle.brand }} {{ vehicle.model }}</div>
-          <div class="text-xs text-zinc-500">{{ vehicle.plate }}</div>
+          <div class="text-xs text-zinc-500">{{ vehicle.plate | format_plate }}</div>
         </td>
         <td class="px-4 py-3">
           {% if loan.loan_category %}
@@ -119,11 +119,11 @@
         </td>
         <td class="px-4 py-3">
           {% if loan.agreement_signed and agreement_asset %}
-          <a class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-200" href="{{ agreement_asset.file_path }}" target="_blank">Firmado</a>
-          {% elif loan.agreement_signed %}
-          <span class="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">Sin archivo</span>
+          <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-50 text-[10px] font-semibold text-emerald-700" title="Completo" aria-label="Completo">✓</span>
+          {% elif loan.returned_at %}
+          <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-zinc-50 text-[10px] font-semibold text-zinc-700" title="No cargado al cierre" aria-label="No cargado al cierre">✕</span>
           {% else %}
-          <span class="rounded-full bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700">Pendiente</span>
+          <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-50 text-[10px] font-semibold text-rose-700" title="Pendiente en préstamo activo" aria-label="Pendiente en préstamo activo">!</span>
           {% endif %}
         </td>
         <td class="px-4 py-3 text-right">

@@ -59,7 +59,7 @@
           <a href="/vehicles/{{ vehicle.id }}/edit" class="underline decoration-transparent underline-offset-4 hover:decoration-zinc-900">{{ vehicle.brand }} {{ vehicle.model }}</a>
           {% if vehicle.year %}<span class="font-normal text-zinc-500">{{ vehicle.year }}</span>{% endif %}
         </td>
-        <td class="px-4 py-3">{{ vehicle.plate }}</td>
+        <td class="px-4 py-3">{{ vehicle.plate | format_plate }}</td>
         <td class="px-4 py-3">{{ vehicle.color or "-" }}</td>
         <td class="px-4 py-3">
           <span class="status-pill status-{{ display_status }}">

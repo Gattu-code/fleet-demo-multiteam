@@ -7,7 +7,7 @@
   <div>
     <a href="/vehicles{% if team_id %}?team_id={{ team_id }}{% endif %}" class="text-sm text-zinc-600 hover:text-zinc-950">Volver</a>
     <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ vehicle.brand }} {{ vehicle.model }}</h1>
-    <p class="mt-1 text-sm text-zinc-600">{{ vehicle.plate }}{% if vehicle.year %} / {{ vehicle.year }}{% endif %}{% if vehicle.color %} / {{ vehicle.color }}{% endif %}</p>
+    <p class="mt-1 text-sm text-zinc-600">{{ vehicle.plate | format_plate }}{% if vehicle.year %} / {{ vehicle.year }}{% endif %}{% if vehicle.color %} / {{ vehicle.color }}{% endif %}</p>
   </div>
   <div class="flex items-center gap-3">
     <a href="/vehicles/{{ vehicle.id }}/edit" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Editar vehiculo</a>
@@ -230,9 +230,7 @@
         <strong>Comodato:</strong>
         {% set active_agreement = active_loan.assets | selectattr("category", "equalto", "agreement") | list | first %}
         {% if active_loan.agreement_signed and active_agreement %}
-        <a href="{{ active_agreement.file_path }}" target="_blank" class="font-medium text-emerald-700 underline decoration-emerald-300 underline-offset-4 hover:decoration-emerald-700">Firmado</a>
-        {% elif active_loan.agreement_signed %}
-        <span class="font-medium text-emerald-700">Firmado</span>
+        <span class="font-medium text-emerald-700">Completo</span>
         {% else %}
         <span class="font-medium text-amber-700">Pendiente</span>
         {% endif %}
@@ -313,9 +311,7 @@
                 <dt class="text-zinc-500">Comodato</dt>
                 <dd>
                   {% if loan.agreement_signed and row.asset_groups.agreement_doc %}
-                  <a href="{{ row.asset_groups.agreement_doc[0].file_path }}" target="_blank" class="font-medium text-emerald-700 underline decoration-emerald-300 underline-offset-4 hover:decoration-emerald-700">Firmado</a>
-                  {% elif loan.agreement_signed %}
-                  <span class="font-medium text-emerald-700">Firmado</span>
+                  <span class="font-medium text-emerald-700">Completo</span>
                   {% else %}
                   <span class="font-medium text-amber-700">Pendiente</span>
                   {% endif %}

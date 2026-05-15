@@ -1,14 +1,22 @@
 # FlotasMultimarca AS
 
-Sistema de gestion de flotas de mercadeo para Astara.
+Sistema interno de gestion de flotas de mercadeo para Astara.
 
 Estado actual:
-- FastAPI + SQLite + SQLAlchemy + Jinja2
-- autenticacion basica con sesiones
-- roles: admin, fleet_supervisor, coordinator, operator, viewer
-- scopes por equipo
-- inventario, prestamos, devoluciones, evidencia e historial
-- transferencias de vehiculos entre equipos
+- Fase 1 cerrada: autenticacion basica, roles, scopes por equipo, operador operativo y transferencias
+- Fase 2A cerrada: administracion basica de categorias, equipos, usuarios y configuracion por equipo
+- Fase 2B avanzada y en estabilizacion: checklist operativo, evidencia agrupada, novedades estructuradas, validaciones por fotos y limpieza UX
+
+## Que hace hoy
+
+- inventario de vehiculos
+- prestamos y devoluciones
+- evidencia fotografica y documental
+- transferencias historicas entre equipos
+- administracion basica de equipos, usuarios, categorias y configuracion
+- vista operativa separada para `operator`
+- labels operativos mas claros para entrega, devolucion y comodato
+- indicadores compactos de estado comodato en prestamos
 
 ## Inicio rapido
 
@@ -26,35 +34,29 @@ Abre:
 http://127.0.0.1:8000
 ```
 
-## Entradas utiles
+## Usuarios demo
 
-- `README.md`: punto de entrada
-- `PROJECT_BRIEF.md`: objetivo vigente del producto
-- `ARCHITECTURE.md`: arquitectura actual
-- `DECISIONS.md`: decisiones ya cerradas
-- `TASK.md`: roadmap incremental
-
-## Datos demo
-
-La semilla crea equipos, usuarios demo, vehiculos y prestamos distribuidos por equipo para probar scopes y transferencias.
-
-```powershell
-python -m app.seed
-```
-
-Usuarios demo:
 - `admin` / `demo123`
 - `fleet_supervisor` / `demo123`
 - `coordinator` / `demo123`
 - `operator` / `demo123`
 - `viewer` / `demo123`
 
-## Flujo por rol
+## Modulos principales
 
-- `admin` y `fleet_supervisor`: vista global y gestion administrativa
-- `coordinator`: vista acotada a su equipo
-- `operator`: vista operativa en `/operator/vehicles`
-- `viewer`: solo lectura dentro de su equipo
+- `Dashboard`: lectura ejecutiva
+- `Inventario`: vehiculos y edicion administrativa
+- `Prestamos`: listado historico y control documental
+- `Operador`: flujo operativo rapido y refinado
+- `Administracion`: equipos, usuarios, categorias y configuracion por equipo
+
+## Datos demo
+
+La semilla crea equipos, usuarios, vehiculos y prestamos distribuidos para probar scopes, operaciones y transferencias.
+
+```powershell
+python -m app.seed
+```
 
 ## Docker
 
@@ -63,3 +65,18 @@ docker compose up -d --build
 ```
 
 El contenedor usa SQLite persistente en `/app/data/fleet.db` y uploads persistentes en `/app/uploads`.
+
+## Pendientes documentados
+
+- rediseño de la tabla `loans`
+- revision integral de la UX de `operator`
+- flujo separado para crear equipos
+- `operator` multi-equipo
+- Fase 2C con KPIs operativos
+
+## Documentacion
+
+- `PROJECT_BRIEF.md`: brief vigente del producto
+- `ARCHITECTURE.md`: arquitectura actual
+- `DECISIONS.md`: decisiones ya cerradas
+- `TASK.md`: roadmap y pendientes

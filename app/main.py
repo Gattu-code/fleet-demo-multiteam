@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+import re
 import os
 from pathlib import Path
 from urllib.parse import urlencode
@@ -173,6 +174,32 @@ app = FastAPI(title="Gestión de flotas (Marketing) :: Demo")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.mount("/uploads", StaticFiles(directory=BASE_DIR / "uploads"), name="uploads")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+
+def normalize_plate_value(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = re.sub(r"[^A-Z0-9]", "", value.strip().upper())
+    if not cleaned:
+        return None
+    if len(cleaned) == 6:
+        return f"{cleaned[:3]}-{cleaned[3:]}"
+    return cleaned
+
+
+def format_plate_value(value: str | None) -> str:
+    normalized = normalize_plate_value(value)
+    return normalized or ""
+
+
+def normalize_plate_search(value: str | None) -> str | None:
+    normalized = normalize_plate_value(value)
+    if normalized is None:
+        return None
+    return normalized.replace("-", "")
+
+
+templates.env.filters["format_plate"] = format_plate_value
 
 
 @app.middleware("http")
@@ -735,17 +762,23 @@ def dashboard(
 def list_vehicles(
     request: Request,
     team_id: str | None = None,
+    plate: str | None = None,
     db: Session = Depends(get_db),
 ):
     current_user = request.state.current_user
     selected_team_id = resolve_team_scope(team_id, current_user)
     teams = load_visible_teams(db, current_user)
+    plate_input = plate or request.query_params.get("plate")
+    selected_plate = normalize_plate_search(plate_input)
     vehicle_query = (
         select(Vehicle)
         .options(selectinload(Vehicle.loans).selectinload(Loan.assets))
         .order_by(Vehicle.created_at.desc())
     )
     vehicle_query = apply_team_scope(vehicle_query, current_user, Vehicle.team_id)
+    if selected_plate:
+        normalized_plate_column = func.replace(func.replace(func.upper(Vehicle.plate), "-", ""), " ", "")
+        vehicle_query = vehicle_query.where(normalized_plate_column.like(f"%{selected_plate}%"))
     if is_global_user(current_user) and selected_team_id is not None:
         vehicle_query = vehicle_query.where(Vehicle.team_id == selected_team_id)
 
@@ -776,6 +809,7 @@ def list_vehicles(
             "vehicle_rows": vehicle_rows,
             "teams": teams,
             "selected_team_id": selected_team_id,
+            "selected_plate": format_plate_value(plate_input),
         },
     )
 
@@ -1261,7 +1295,7 @@ def list_loans(
     teams = load_visible_teams(db, current_user)
     loans_query = (
         select(Loan)
-        .options(selectinload(Loan.vehicle), selectinload(Loan.assets))
+        .options(selectinload(Loan.vehicle), selectinload(Loan.assets), selectinload(Loan.issues))
         .order_by(Loan.created_at.desc())
     )
     loans_query = apply_team_scope(loans_query, current_user, Loan.team_id)
@@ -1354,7 +1388,8 @@ def operator_vehicles(
     db: Session = Depends(get_db),
 ):
     current_user = request.state.current_user
-    selected_plate = clean_optional(plate or request.query_params.get("plate"))
+    plate_input = plate or request.query_params.get("plate")
+    selected_plate = normalize_plate_search(plate_input)
     vehicle_query = (
         select(Vehicle)
         .options(
@@ -1366,7 +1401,8 @@ def operator_vehicles(
     )
     vehicle_query = apply_team_scope(vehicle_query, current_user, Vehicle.team_id)
     if selected_plate:
-        vehicle_query = vehicle_query.where(func.lower(Vehicle.plate).like(f"%{selected_plate.lower()}%"))
+        normalized_plate_column = func.replace(func.replace(func.upper(Vehicle.plate), "-", ""), " ", "")
+        vehicle_query = vehicle_query.where(normalized_plate_column.like(f"%{selected_plate}%"))
     vehicles = db.scalars(vehicle_query).all()
     vehicle_rows = []
     for vehicle in vehicles:
@@ -1400,7 +1436,7 @@ def operator_vehicles(
     operator_query_suffix = build_query_suffix(
         {
             "team_id": request.query_params.get("team_id"),
-            "plate": selected_plate,
+            "plate": format_plate_value(plate_input) or None,
         }
     )
     return templates.TemplateResponse(
@@ -1408,7 +1444,7 @@ def operator_vehicles(
         {
             "request": request,
             "vehicle_rows": vehicle_rows,
-            "selected_plate": selected_plate or "",
+            "selected_plate": format_plate_value(plate_input),
             "operator_query_suffix": operator_query_suffix,
         },
     )
@@ -1496,12 +1532,13 @@ def create_vehicle(
         return RedirectResponse(url=admin_vehicle_redirect(current_user), status_code=303)
     reference_image_path = save_upload(reference_image, "vehicle", VEHICLE_IMAGE_DIR)
     default_team = get_default_team(db)
+    normalized_plate = normalize_plate_value(plate) or plate.strip().upper()
     vehicle = Vehicle(
         team_id=default_team.id,
         brand=brand.strip(),
         model=model.strip(),
         year=year,
-        plate=plate.strip().upper(),
+        plate=normalized_plate,
         color=color.strip() if color else None,
         reference_image_path=reference_image_path,
         status="available",
@@ -1591,10 +1628,11 @@ def update_vehicle(
         return RedirectResponse(url=admin_vehicle_redirect(current_user), status_code=303)
 
     reference_image_path = save_upload(reference_image, "vehicle", VEHICLE_IMAGE_DIR)
+    normalized_plate = normalize_plate_value(plate) or plate.strip().upper()
     vehicle.brand = brand.strip()
     vehicle.model = model.strip()
     vehicle.year = year
-    vehicle.plate = plate.strip().upper()
+    vehicle.plate = normalized_plate
     vehicle.color = clean_optional(color)
     vehicle.has_open_issue = has_open_issue
     if is_retired:
