@@ -123,11 +123,12 @@
 
 {% if vehicle.status == "available" and not active_loan %}
   <h2 class="text-lg font-semibold">Registrar entrega</h2>
-  {% if team_config and team_config.requires_delivery_photos %}
-  <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-    Este equipo requiere fotos de entrega.
-  </div>
-  {% endif %}
+    {% if team_config and team_config.requires_delivery_photos %}
+    <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      Este equipo requiere fotos de entrega.
+      <span class="mt-1 block text-xs text-amber-800">Adjunta al menos un archivo de entrega antes de registrar.</span>
+    </div>
+    {% endif %}
   {% if team_config and team_config.default_loan_category and team_config.default_loan_category.is_active %}
   <div class="mt-3 rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
     Categoria por defecto del equipo: <strong>{{ team_config.default_loan_category.name }}</strong>.
@@ -204,6 +205,7 @@
   {% if team_config and team_config.requires_return_photos %}
   <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
     Este equipo requiere fotos de devolucion.
+    <span class="mt-1 block text-xs text-amber-800">Adjunta al menos un archivo de devolucion antes de registrar.</span>
   </div>
   {% endif %}
   {% if team_config and team_config.default_loan_category and team_config.default_loan_category.is_active %}

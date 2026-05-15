@@ -28,6 +28,11 @@
 </section>
 
 <section class="mt-6 overflow-x-auto rounded-lg border border-zinc-200 bg-white">
+  <div class="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-xs text-zinc-600">
+    <span class="font-semibold text-zinc-500">TR</span> = traslados permitidos ·
+    <span class="font-semibold text-zinc-500">FE</span> = fotos requeridas en entrega ·
+    <span class="font-semibold text-zinc-500">FD</span> = fotos requeridas en devolucion
+  </div>
   <table class="w-full min-w-[780px] text-left text-sm">
     <thead class="border-b border-zinc-200 bg-zinc-100 text-xs uppercase text-zinc-600">
       <tr>
@@ -65,15 +70,10 @@
         </td>
         <td class="px-4 py-3">
           {% if team.config %}
-          <div class="flex flex-wrap gap-2 text-xs font-semibold">
-            <span class="rounded-full {% if team.config.allows_transfers %}bg-emerald-100 text-emerald-700{% else %}bg-rose-100 text-rose-700{% endif %} px-2 py-1">
-              {% if team.config.allows_transfers %}Traslados permitidos{% else %}Traslados bloqueados{% endif %}
-            </span>
-            {% if team.config.default_loan_category %}
-            <span class="rounded-full bg-sky-100 px-2 py-1 text-sky-700">
-              {{ team.config.default_loan_category.name }}{% if not team.config.default_loan_category.is_active %} (inactiva){% endif %}
-            </span>
-            {% endif %}
+          <div class="space-y-1 text-xs text-zinc-600">
+            <div><span class="font-semibold text-zinc-500">TR:</span> {% if team.config.allows_transfers %}Si{% else %}No{% endif %}</div>
+            <div><span class="font-semibold text-zinc-500">FE:</span> {% if team.config.requires_delivery_photos %}Si{% else %}No{% endif %}</div>
+            <div><span class="font-semibold text-zinc-500">FD:</span> {% if team.config.requires_return_photos %}Si{% else %}No{% endif %}</div>
           </div>
           {% else %}
           <span class="text-zinc-500">Sin configuracion</span>

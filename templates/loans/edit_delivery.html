@@ -6,6 +6,12 @@
   <a href="/vehicles/{{ loan.vehicle_id }}" class="text-sm text-zinc-600 hover:text-zinc-950">Volver</a>
   <h1 class="mt-2 text-2xl font-semibold tracking-tight">Editar entrega</h1>
   <p class="mt-1 text-sm text-zinc-600">{{ loan.vehicle.brand }} {{ loan.vehicle.model }} / {{ loan.vehicle.plate }}</p>
+  {% if loan.vehicle.team and loan.vehicle.team.config and loan.vehicle.team.config.requires_delivery_photos %}
+  <div class="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+    Este equipo requiere fotos de entrega.
+    <span class="mt-1 block text-xs text-amber-800">Adjunta al menos un archivo de entrega antes de guardar cambios.</span>
+  </div>
+  {% endif %}
 
   <form action="/loans/{{ loan.id }}/edit-delivery" method="post" enctype="multipart/form-data" class="mt-6 space-y-5 rounded-lg border border-zinc-200 bg-white p-6">
     <div class="grid gap-4 sm:grid-cols-2">

@@ -361,6 +361,10 @@ def add_loan_assets(
         )
 
 
+def has_uploaded_files(files: list[UploadFile] | None) -> bool:
+    return any(file and file.filename for file in files or [])
+
+
 def clean_optional(value: str | None) -> str | None:
     if not value:
         return None
@@ -1720,6 +1724,17 @@ def deliver_vehicle(
     if team_config and team_config.default_loan_category and team_config.default_loan_category.is_active:
         default_category_name = team_config.default_loan_category.name
 
+    if team_config and team_config.requires_delivery_photos and not has_uploaded_files(delivery_files):
+        flash_message(
+            request,
+            "warning",
+            "Este equipo requiere fotos de entrega. Adjunta al menos un archivo de entrega.",
+        )
+        redirect_url = f"/vehicles/{vehicle.id}"
+        if redirect_to == "operator":
+            redirect_url = f"/operator/vehicles/{vehicle.id}"
+        return RedirectResponse(url=redirect_url, status_code=303)
+
     loan = Loan(
         vehicle_id=vehicle.id,
         team_id=vehicle.team_id,
@@ -1788,10 +1803,32 @@ def update_delivery(
     current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    loan = db.get(Loan, loan_id)
+    loan = db.scalar(
+        select(Loan)
+        .options(
+            selectinload(Loan.assets),
+            selectinload(Loan.vehicle)
+            .selectinload(Vehicle.team)
+            .selectinload(Team.config)
+            .selectinload(TeamConfig.default_loan_category),
+        )
+        .where(Loan.id == loan_id)
+    )
     if loan is None:
         flash_message(request, "error", "El prestamo no existe.")
         return RedirectResponse(url="/vehicles", status_code=303)
+
+    team_config = load_team_config(db, loan.vehicle.team)
+    if team_config and team_config.requires_delivery_photos and not (
+        has_uploaded_files(delivery_files)
+        or any(asset.category == "delivery" for asset in loan.assets)
+    ):
+        flash_message(
+            request,
+            "warning",
+            "Este equipo requiere fotos de entrega. Adjunta al menos un archivo de entrega.",
+        )
+        return RedirectResponse(url=f"/vehicles/{loan.vehicle_id}/edit", status_code=303)
 
     loan.borrower_name = borrower_name.strip()
     loan.phone = clean_optional(phone)
@@ -1863,10 +1900,32 @@ def return_vehicle(
     current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    loan = db.get(Loan, loan_id)
+    loan = db.scalar(
+        select(Loan)
+        .options(
+            selectinload(Loan.assets),
+            selectinload(Loan.vehicle)
+            .selectinload(Vehicle.team)
+            .selectinload(Team.config)
+            .selectinload(TeamConfig.default_loan_category),
+        )
+        .where(Loan.id == loan_id)
+    )
     if loan is None:
         flash_message(request, "error", "El prestamo no existe.")
         return RedirectResponse(url="/vehicles", status_code=303)
+
+    team_config = load_team_config(db, loan.vehicle.team)
+    if team_config and team_config.requires_return_photos and not has_uploaded_files(return_files):
+        flash_message(
+            request,
+            "warning",
+            "Este equipo requiere fotos de devolucion. Adjunta al menos un archivo de devolucion.",
+        )
+        redirect_target = "/operator/vehicles" if redirect_to == "operator" else "/vehicles"
+        if team_id:
+            redirect_target = f"{redirect_target}?team_id={team_id}"
+        return RedirectResponse(url=redirect_target, status_code=303)
 
     loan.return_mileage = return_mileage
     loan.return_operator = clean_optional(return_operator)
