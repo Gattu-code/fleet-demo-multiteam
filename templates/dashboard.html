@@ -79,24 +79,78 @@
 <section class="mt-6 grid gap-6 lg:grid-cols-3">
   <div class="rounded-lg border border-zinc-200 bg-white p-6">
     <h2 class="text-lg font-semibold">Utilizacion</h2>
-    <dl class="mt-4 grid gap-4 text-sm">
-      <div class="flex justify-between border-b border-zinc-100 pb-3"><dt class="text-zinc-500">Vehiculos actualmente asignados</dt><dd class="font-semibold">{{ utilization_rate }}%</dd></div>
-      <div class="flex justify-between border-b border-zinc-100 pb-3"><dt class="text-zinc-500">Dias promedio por prestamo</dt><dd class="font-semibold">{{ avg_days }}</dd></div>
-      <div class="flex justify-between border-b border-zinc-100 pb-3"><dt class="text-zinc-500">Km totales</dt><dd class="font-semibold">{{ total_km }}</dd></div>
-      <div class="flex justify-between"><dt class="text-zinc-500">Km promedio</dt><dd class="font-semibold">{{ avg_km }}</dd></div>
+    <p class="mt-1 text-sm text-zinc-600">Resumen de kilometros y tiempos de uso.</p>
+    <dl class="mt-4 divide-y divide-zinc-100 text-sm">
+      <div class="flex items-center justify-between gap-3 py-3 first:pt-0">
+        <dt class="text-zinc-500">Vehiculos en flota</dt><dd class="font-semibold">{{ total_vehicles }} vehiculos</dd>
+      </div>
+      <div class="flex items-center justify-between gap-3 py-3">
+        <dt class="text-zinc-500">Vehiculos asignados / prestados</dt><dd class="font-semibold">{{ assigned_vehicles }} vehiculos</dd>
+      </div>
+      <div class="flex items-center justify-between gap-3 py-3">
+        <dt class="text-zinc-500">Vehiculos disponibles</dt><dd class="font-semibold">{{ available_vehicles }} vehiculos</dd>
+      </div>
+      <div class="flex items-center justify-between gap-3 py-3">
+        <dt class="text-zinc-500">Vehiculos retirados / no disponibles</dt><dd class="font-semibold">{{ retired_vehicles }} vehiculos</dd>
+      </div>
+      <div class="flex items-center justify-between gap-3 py-3">
+        <dt class="text-zinc-500">Km totales recorridos</dt><dd class="font-semibold">{{ total_km }} km</dd>
+      </div>
+      <div class="flex items-center justify-between gap-3 py-3">
+        <dt class="text-zinc-500">Km promedio por prestamo</dt><dd class="font-semibold">{{ avg_km }} km</dd>
+      </div>
+      <div class="flex items-center justify-between gap-3 py-3">
+        <dt class="text-zinc-500">Dias promedio por prestamo</dt><dd class="font-semibold">{{ avg_days }} dias</dd>
+      </div>
+      <div class="flex items-center justify-between gap-3 py-3 last:pb-0">
+        <dt class="text-zinc-500">Antiguedad promedio de la flota</dt><dd class="font-semibold">{{ fleet_avg_age_days }} dias</dd>
+      </div>
     </dl>
   </div>
 
-  <div class="rounded-lg border border-zinc-200 bg-white p-6 lg:col-span-2">
-    <h2 class="text-lg font-semibold">Top vehiculos</h2>
-    <div class="mt-4 space-y-3">
-      {% for label, stats in top_vehicles %}
-      <div class="grid gap-2 text-sm sm:grid-cols-[1fr_auto_auto_auto]">
-        <a href="/loans?vehicle_id={{ stats.vehicle_id }}{% if selected_team_id %}&team_id={{ selected_team_id }}{% endif %}" class="font-medium underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-900">{{ label }}</a>
-        <span>{{ stats.count }} prestamos</span>
-        <span>{{ stats.days }} dias</span>
-        <span>{{ stats.km }} km</span>
+  <div class="rounded-lg border border-zinc-200 bg-white p-6">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-semibold">Top vehiculos</h2>
+        <p class="mt-1 text-sm text-zinc-600">Top 5 por asignaciones dentro del periodo.</p>
       </div>
+    </div>
+    <div class="mt-4 space-y-4">
+      {% for label, stats in top_vehicles %}
+      <div class="border-b border-zinc-100 pb-3 last:border-b-0 last:pb-0">
+        <a href="/loans?vehicle_id={{ stats.vehicle_id }}{% if selected_team_id %}&team_id={{ selected_team_id }}{% endif %}" class="font-medium underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-900">{{ label }}</a>
+        <div class="mt-1 text-xs text-zinc-500 whitespace-nowrap">
+          <span>{{ stats.count }} prestamos</span>
+          <span class="px-1">·</span>
+          <span>{{ stats.days }} dias</span>
+          <span class="px-1">·</span>
+          <span>{{ stats.km }} km</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div id="idle-vehicles" class="rounded-lg border border-zinc-200 bg-white p-6 scroll-mt-6">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-semibold">Ociosos</h2>
+        <p class="mt-1 text-sm text-zinc-600">Mas de 10 dias sin prestamo.</p>
+      </div>
+      <span class="rounded-full bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-700">{{ idle_vehicle_count }} vehiculos</span>
+    </div>
+    <div class="mt-4 space-y-3 text-sm">
+      {% for row in idle_vehicle_rows[:3] %}
+      {% set vehicle = row.vehicle %}
+      <div class="flex items-start justify-between gap-3 border-b border-zinc-100 pb-3 last:border-b-0 last:pb-0">
+        <div>
+          <a href="/vehicles/{{ vehicle.id }}{% if selected_team_id %}?team_id={{ selected_team_id }}{% endif %}" class="font-medium underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-900">{{ vehicle.plate | format_plate }} - {{ vehicle.brand }} {{ vehicle.model }}</a>
+          <div class="text-xs text-zinc-500">{{ row.team_name }}</div>
+        </div>
+        <span class="font-semibold">{{ row.idle_days }} dias</span>
+      </div>
+      {% else %}
+      <p class="text-zinc-600">Sin vehiculos ociosos destacados.</p>
       {% endfor %}
     </div>
   </div>
@@ -219,7 +273,14 @@
             <span class="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">Activo</span>
             {% endif %}
           </td>
-          <td class="py-3 text-right"><a href="/loans/{{ loan.id }}" class="font-medium underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-900">Ver</a></td>
+          <td class="py-3 text-right">
+            <a href="/loans/{{ loan.id }}" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-300 text-zinc-700 hover:bg-zinc-100" title="Ver prestamo" aria-label="Ver prestamo">
+              <svg viewBox="0 0 24 24" class="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1.5 12s3.5-7 10.5-7 10.5 7 10.5 7-3.5 7-10.5 7-10.5-7-10.5-7Z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </a>
+          </td>
         </tr>
         {% endfor %}
       </tbody>

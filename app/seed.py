@@ -59,9 +59,16 @@ DEMO_VEHICLE_TEAMS = {
     "VOL-101": "Marketing Volvo",
     "VOL-202": "Marketing Hyundai",
     "VOL-303": "Marketing Peugeot",
-    "VOL-404": "Comercial A",
-    "VOL-505": "Operaciones Demo",
-    "VOL-606": "Administrativo",
+    "VOL-404": "Marketing Volvo",
+    "VOL-505": "Marketing Volvo",
+    "VOL-606": "Marketing Peugeot",
+    "VOL-707": "Marketing Volvo",
+    "VOL-808": "Marketing Volvo",
+    "VOL-909": "Marketing Volvo",
+    "HYU-303": "Marketing Hyundai",
+    "PEU-404": "Marketing Peugeot",
+    "PEU-606": "Marketing Peugeot",
+    "OPS-101": "Operaciones Demo",
 }
 
 TEAM_CONFIG_DEFAULTS = {
@@ -416,6 +423,61 @@ def seed():
                 "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-101"])).id,
             },
             {
+                "brand": "Volvo",
+                "model": "EX40",
+                "year": 2025,
+                "plate": "VOL-404",
+                "color": "Vapour Grey",
+                "status": "assigned",
+                "has_open_issue": False,
+                "reference_image_path": vehicle_image_path,
+                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-404"])).id,
+            },
+            {
+                "brand": "Volvo",
+                "model": "XC60",
+                "year": 2025,
+                "plate": "VOL-505",
+                "color": "Crystal White",
+                "status": "available",
+                "has_open_issue": False,
+                "reference_image_path": vehicle_image_path,
+                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-505"])).id,
+            },
+            {
+                "brand": "Volvo",
+                "model": "XC90",
+                "year": 2024,
+                "plate": "VOL-707",
+                "color": "Platinum Grey",
+                "status": "retired",
+                "has_open_issue": False,
+                "reference_image_path": vehicle_image_path,
+                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-707"])).id,
+            },
+            {
+                "brand": "Volvo",
+                "model": "EX40",
+                "year": 2025,
+                "plate": "VOL-808",
+                "color": "Denim Blue",
+                "status": "available",
+                "has_open_issue": True,
+                "reference_image_path": vehicle_image_path,
+                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-808"])).id,
+            },
+            {
+                "brand": "Volvo",
+                "model": "XC60",
+                "year": 2025,
+                "plate": "VOL-909",
+                "color": "Onyx Black",
+                "status": "available",
+                "has_open_issue": False,
+                "reference_image_path": vehicle_image_path,
+                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-909"])).id,
+            },
+            {
                 "brand": "Hyundai",
                 "model": "IONIQ 5",
                 "year": 2025,
@@ -438,26 +500,26 @@ def seed():
                 "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-303"])).id,
             },
             {
-                "brand": "Volvo",
-                "model": "EX90",
-                "year": 2025,
-                "plate": "VOL-404",
-                "color": "Platinum Grey",
-                "status": "available",
-                "has_open_issue": True,
-                "reference_image_path": vehicle_image_path,
-                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-404"])).id,
-            },
-            {
-                "brand": "Volvo",
-                "model": "XC60",
-                "year": 2025,
-                "plate": "VOL-505",
-                "color": "Crystal White",
+                "brand": "Hyundai",
+                "model": "Tucson",
+                "year": 2024,
+                "plate": "HYU-303",
+                "color": "Ecotronic Gray",
                 "status": "available",
                 "has_open_issue": False,
                 "reference_image_path": vehicle_image_path,
-                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-505"])).id,
+                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["HYU-303"])).id,
+            },
+            {
+                "brand": "Peugeot",
+                "model": "e-2008",
+                "year": 2024,
+                "plate": "PEU-404",
+                "color": "Vertigo Blue",
+                "status": "available",
+                "has_open_issue": True,
+                "reference_image_path": vehicle_image_path,
+                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["PEU-404"])).id,
             },
             {
                 "brand": "Peugeot",
@@ -469,6 +531,28 @@ def seed():
                 "has_open_issue": False,
                 "reference_image_path": vehicle_image_path,
                 "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-606"])).id,
+            },
+            {
+                "brand": "Peugeot",
+                "model": "3008",
+                "year": 2025,
+                "plate": "PEU-606",
+                "color": "Pearl White",
+                "status": "available",
+                "has_open_issue": False,
+                "reference_image_path": vehicle_image_path,
+                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["PEU-606"])).id,
+            },
+            {
+                "brand": "Peugeot",
+                "model": "5008",
+                "year": 2024,
+                "plate": "OPS-101",
+                "color": "Graphite Grey",
+                "status": "available",
+                "has_open_issue": False,
+                "reference_image_path": vehicle_image_path,
+                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["OPS-101"])).id,
             },
         ]
 
@@ -527,25 +611,51 @@ def seed():
             "Nicolas Mejia",
         ]
         fuel_levels = ["Full", "3/4", "1/2", "1/4"]
-        plates = ["VOL-101", "VOL-202", "VOL-303", "VOL-404", "VOL-505", "VOL-606"]
+        loan_plates = [
+            "VOL-101",
+            "VOL-404",
+            "VOL-505",
+            "VOL-808",
+            "VOL-909",
+            "VOL-202",
+            "VOL-303",
+            "VOL-606",
+            "HYU-303",
+            "PEU-404",
+            "PEU-606",
+            "OPS-101",
+        ]
         base_mileage = {
             "VOL-101": 9000,
-            "VOL-202": 18000,
-            "VOL-303": 15000,
             "VOL-404": 10000,
             "VOL-505": 12000,
+            "VOL-808": 14200,
+            "VOL-909": 15800,
+            "VOL-202": 18000,
+            "VOL-303": 15000,
             "VOL-606": 16000,
+            "HYU-303": 13000,
+            "PEU-404": 15000,
+            "PEU-606": 16000,
+            "OPS-101": 7600,
         }
 
         demo_loans = []
-        for index in range(60):
-            plate = plates[index % len(plates)]
+        for index in range(84):
+            plate = loan_plates[index % len(loan_plates)]
             name = names[index % len(names)]
             duration_days = (index % 9) + 1
-            delivered_days_ago = 180 - (index * 3)
+            if index in {72, 73, 74, 75}:
+                delivered_days_ago = 2 + (index - 72)
+            elif index < 28:
+                delivered_days_ago = 180 - (index * 4)
+            elif index < 56:
+                delivered_days_ago = 70 - ((index - 28) * 2)
+            else:
+                delivered_days_ago = 18 - (index - 56)
             delivered_at = now - timedelta(days=max(delivered_days_ago, 1), hours=index % 7)
-            is_active = index in {57, 58, 59}
-            return_has_issues = (index % 11) in {0, 5}
+            is_active = index in {72, 73, 74, 75}
+            return_has_issues = not is_active and (index % 9) in {0, 4, 7}
             delivery_mileage = base_mileage[plate] + (index * 137)
             mileage_used = 45 + ((index * 83) % 950)
             returned_at = None if is_active else delivered_at + timedelta(days=duration_days, hours=(index % 5) + 1)
@@ -568,7 +678,7 @@ def seed():
                         if not return_has_issues
                         else f"Prestamo demo #{index + 1}.\n\nReturn notes: Novedad reportada en recepcion para revision."
                     ),
-                    "agreement_signed": index % 8 != 0,
+                    "agreement_signed": index % 5 != 0,
                     "return_has_issues": False if is_active else return_has_issues,
                     "delivered_at": delivered_at,
                     "returned_at": returned_at,
@@ -603,8 +713,16 @@ def seed():
             for item in demo_loans
             if item["return_has_issues"]
         }
+        retired_plates = {
+            item["plate"]
+            for item in vehicles
+            if item["status"] == "retired"
+        }
         for plate, vehicle in created.items():
-            vehicle.status = "assigned" if plate in active_plates else "available"
+            if plate in retired_plates:
+                vehicle.status = "retired"
+            else:
+                vehicle.status = "assigned" if plate in active_plates else "available"
             vehicle.has_open_issue = plate in issue_plates
 
         db.commit()

@@ -556,6 +556,11 @@ def build_dashboard_context(
     retired_vehicles = sum(1 for vehicle in vehicles if vehicle.status == "retired")
     available_vehicles = sum(1 for vehicle in active_fleet if vehicle.status == "available")
     assigned_vehicles = sum(1 for vehicle in active_fleet if vehicle.status == "assigned")
+    fleet_avg_age_days = round(
+        sum(max((utc_now() - vehicle.created_at).days, 0) for vehicle in active_fleet) / total_vehicles,
+        1,
+    ) if total_vehicles else 0
+    closed_loans_count = sum(1 for loan in loans if loan.returned_at is not None)
     issue_loans = sum(1 for loan in loans if loan.return_has_issues)
     issue_vehicle_count = sum(1 for vehicle in vehicles if vehicle.has_open_issue)
     signed_with_file = sum(
@@ -611,8 +616,8 @@ def build_dashboard_context(
     closed_rows = [row for row in loan_rows if row["loan"].returned_at is not None]
     total_days = sum(row["days_on_loan"] for row in loan_rows)
     total_km = sum(row["mileage_used"] or 0 for row in closed_rows)
-    avg_days = round(total_days / total_loans, 1) if total_loans else 0
-    avg_km = round(total_km / len(closed_rows), 1) if closed_rows else 0
+    avg_days = round(total_days / len(loan_rows), 1) if loan_rows else 0
+    avg_km = round(total_km / closed_loans_count, 1) if closed_loans_count else 0
 
     by_category = {}
     issues_by_category = {}
@@ -684,6 +689,7 @@ def build_dashboard_context(
         "total_km": total_km,
         "avg_km": avg_km,
         "avg_days": avg_days,
+        "fleet_avg_age_days": fleet_avg_age_days,
         "by_category": sorted(by_category.items(), key=lambda item: item[1], reverse=True),
         "issues_by_category": sorted(issues_by_category.items(), key=lambda item: item[1], reverse=True),
         "by_model": sorted(by_model.items(), key=lambda item: item[1], reverse=True),
@@ -807,7 +813,7 @@ def dashboard(
         if team_id:
             operator_target = f"{operator_target}?team_id={team_id}"
         return RedirectResponse(url=operator_target, status_code=303)
-    context = build_dashboard_context(request, period, team_id, db, include_idle_rows=False)
+    context = build_dashboard_context(request, period, team_id, db, include_idle_rows=True)
     return templates.TemplateResponse(
         "dashboard.html",
         context,
@@ -1363,6 +1369,7 @@ def list_loans(
     category: str | None = None,
     agreement: str | None = None,
     vehicle_id: int | None = None,
+    filter_vehicle_id: int | None = None,
     saved: int | None = None,
     team_id: str | None = None,
     db: Session = Depends(get_db),
@@ -1379,6 +1386,26 @@ def list_loans(
     if is_global_user(current_user) and selected_team_id is not None:
         loans_query = loans_query.where(Loan.team_id == selected_team_id)
     loans = db.scalars(loans_query).all()
+    selected_vehicle_id = vehicle_id or filter_vehicle_id
+    selected_vehicle_label = None
+    if selected_vehicle_id:
+        selected_vehicle = db.scalar(select(Vehicle).where(Vehicle.id == selected_vehicle_id))
+        if selected_vehicle is not None:
+            selected_vehicle_label = format_plate_value(selected_vehicle.plate)
+        else:
+            selected_vehicle_label = f"#{selected_vehicle_id}"
+    clear_vehicle_filter_params = {}
+    if status:
+        clear_vehicle_filter_params["status"] = status
+    if category:
+        clear_vehicle_filter_params["category"] = category
+    if agreement:
+        clear_vehicle_filter_params["agreement"] = agreement
+    if selected_team_id is not None:
+        clear_vehicle_filter_params["team_id"] = str(selected_team_id)
+    clear_vehicle_filter_url = "/loans"
+    if clear_vehicle_filter_params:
+        clear_vehicle_filter_url = f"/loans?{urlencode(clear_vehicle_filter_params)}"
 
     loan_rows = []
     for loan in loans:
@@ -1390,7 +1417,7 @@ def list_loans(
             continue
         if category and loan.loan_category != category:
             continue
-        if vehicle_id and loan.vehicle_id != vehicle_id:
+        if selected_vehicle_id and loan.vehicle_id != selected_vehicle_id:
             continue
         agreement_asset = next(
             (asset for asset in loan.assets if asset.category == "agreement"),
@@ -1417,7 +1444,9 @@ def list_loans(
             "selected_status": status or "",
             "selected_category": category or "",
             "selected_agreement": agreement or "",
-            "selected_vehicle_id": vehicle_id,
+            "selected_vehicle_id": selected_vehicle_id,
+            "selected_vehicle_label": selected_vehicle_label,
+            "clear_vehicle_filter_url": clear_vehicle_filter_url,
             "saved_loan_id": saved,
         },
     )
