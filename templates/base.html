@@ -116,25 +116,24 @@
       <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4">
         <div class="min-w-0">
           <div class="text-lg font-semibold tracking-tight">FlotasMultimarca AS</div>
-          <div class="text-sm text-zinc-500">Inventario de vehiculos</div>
+          <div class="text-sm text-zinc-500">Flota operativa</div>
         </div>
         <div class="flex items-center gap-3">
           {% if request.state.current_user %}
           {% if request.state.current_user.role == "operator" %}
-          <a href="/operator/vehicles" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Panel operativo</a>
+          <a href="/operator/vehicles" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Operación logística</a>
           {% else %}
           <a href="/dashboard" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Dashboard</a>
-          <a href="/vehicles" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Inventario</a>
+          <a href="/vehicles" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Flota</a>
           <a href="/loans" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Prestamos</a>
-          <a href="/operator/vehicles" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Operador</a>
+          <a href="/operator/vehicles" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Operación logística</a>
           {% if request.state.current_user.role in ["admin", "fleet_supervisor"] %}
           <a href="/admin" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Administracion</a>
           <a href="/vehicles/new" class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Nuevo vehiculo</a>
           {% endif %}
           {% endif %}
           <div class="flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm">
-            <span class="font-medium">{{ request.state.current_user.username }}</span>
-            <span class="text-zinc-500">({{ request.state.current_user.role }})</span>
+            <span class="font-medium">{{ user_identity_label(request.state.current_user) }}</span>
           </div>
           <form action="/logout" method="post">
             <button class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100" type="submit">Salir</button>

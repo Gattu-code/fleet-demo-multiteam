@@ -176,6 +176,30 @@ app.mount("/uploads", StaticFiles(directory=BASE_DIR / "uploads"), name="uploads
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
+def friendly_role_label(role: str | None) -> str:
+    role_labels = {
+        "admin": "Admin",
+        "fleet_supervisor": "Fleet Supervisor",
+        "coordinator": "Coordinator",
+        "operator": "Operator",
+        "viewer": "Viewer",
+    }
+    if not role:
+        return "Usuario"
+    return role_labels.get(role, role.replace("_", " ").title())
+
+
+def user_identity_label(user: User | None) -> str:
+    if user is None:
+        return ""
+    team_name = user.team.name if user.team else "Global"
+    return f"{team_name} · {friendly_role_label(user.role)}"
+
+
+templates.env.globals["friendly_role_label"] = friendly_role_label
+templates.env.globals["user_identity_label"] = user_identity_label
+
+
 def normalize_plate_value(value: str | None) -> str | None:
     if value is None:
         return None
@@ -212,7 +236,9 @@ async def attach_current_user(request: Request, call_next):
     else:
         db = SessionLocal()
         try:
-            request.state.current_user = db.get(User, user_id)
+            request.state.current_user = db.scalar(
+                select(User).options(selectinload(User.team)).where(User.id == user_id)
+            )
         finally:
             db.close()
     response = await call_next(request)
@@ -750,7 +776,9 @@ def login_redirect_target(next_url: str | None = None, user: User | None = None)
 
 
 @app.get("/")
-def home():
+def home(request: Request):
+    if request.state.current_user is None:
+        return RedirectResponse(url="/login", status_code=303)
     return RedirectResponse(url="/dashboard", status_code=303)
 
 
@@ -804,9 +832,9 @@ def dashboard(
     request: Request,
     period: str | None = "all",
     team_id: str | None = None,
+    current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    current_user = request.state.current_user
     if current_user is not None and current_user.role == "operator":
         flash_message(request, "info", "Has sido enviado al panel operativo.")
         operator_target = "/operator/vehicles"
@@ -825,9 +853,9 @@ def operations_dashboard(
     request: Request,
     period: str | None = "all",
     team_id: str | None = None,
+    current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    current_user = request.state.current_user
     if current_user is not None and current_user.role == "operator":
         flash_message(request, "info", "Has sido enviado al panel operativo.")
         operator_target = "/operator/vehicles"

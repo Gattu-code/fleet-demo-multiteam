@@ -20,11 +20,11 @@
         <span>Rol</span>
         <select name="role" required>
           <option value="" {% if not user %}selected{% endif %}>Selecciona un rol</option>
-          <option value="admin" {% if user and user.role == 'admin' %}selected{% endif %}>admin</option>
-          <option value="fleet_supervisor" {% if user and user.role == 'fleet_supervisor' %}selected{% endif %}>fleet_supervisor</option>
-          <option value="coordinator" {% if user and user.role == 'coordinator' %}selected{% endif %}>coordinator</option>
-          <option value="operator" {% if user and user.role == 'operator' %}selected{% endif %}>operator</option>
-          <option value="viewer" {% if user and user.role == 'viewer' %}selected{% endif %}>viewer</option>
+          <option value="admin" {% if user and user.role == 'admin' %}selected{% endif %}>Admin</option>
+          <option value="fleet_supervisor" {% if user and user.role == 'fleet_supervisor' %}selected{% endif %}>Fleet Supervisor</option>
+          <option value="coordinator" {% if user and user.role == 'coordinator' %}selected{% endif %}>Coordinator</option>
+          <option value="operator" {% if user and user.role == 'operator' %}selected{% endif %}>Operator</option>
+          <option value="viewer" {% if user and user.role == 'viewer' %}selected{% endif %}>Viewer</option>
         </select>
       </label>
     </div>

@@ -38,7 +38,7 @@
       {% for user in users %}
       <tr>
         <td class="px-4 py-3 font-medium text-zinc-950">{{ user.username }}</td>
-        <td class="px-4 py-3 text-zinc-700">{{ user.role }}</td>
+        <td class="px-4 py-3 text-zinc-700">{{ friendly_role_label(user.role) }}</td>
         <td class="px-4 py-3 text-zinc-700">{{ user.team.name if user.team else "Sin equipo" }}</td>
         <td class="px-4 py-3">
           {% if user.is_active %}
