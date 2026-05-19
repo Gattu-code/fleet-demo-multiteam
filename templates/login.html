@@ -73,17 +73,17 @@
     <h1 class="text-2xl font-semibold tracking-tight">Ingresar</h1>
     <p class="mt-1 text-sm text-zinc-600">Usa una cuenta demo para entrar al sistema.</p>
 
-    <form action="/login" method="post" class="mt-6 space-y-4">
+    <form id="login-form" action="/login" method="post" class="mt-6 space-y-4">
       <input type="hidden" name="next" value="{{ next }}">
       <label class="field">
         <span>Usuario</span>
-        <input name="username" autocomplete="username" required>
+        <input id="login-username" name="username" autocomplete="username" required>
       </label>
       <label class="field">
         <span>Contraseña</span>
-        <input name="password" type="password" autocomplete="current-password" required>
+        <input id="login-password" name="password" type="password" autocomplete="current-password" required>
       </label>
-      <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800" type="submit">Entrar</button>
+      <button id="login-submit" class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800" type="submit">Entrar</button>
     </form>
   </div>
 
@@ -92,12 +92,20 @@
       <div>
         <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-700">Usuarios demo</h2>
         <p class="mt-1 text-sm text-zinc-600">Credenciales de referencia para validar perfiles y alcances operativos.</p>
+        <p class="mt-2 text-xs text-zinc-500">Haz clic en un perfil para cargar sus credenciales.</p>
       </div>
     </div>
 
     <div class="mt-5 grid gap-3 lg:grid-cols-2">
       {% for user in demo_users %}
-      <article class="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+      <article
+        class="demo-user-card cursor-pointer rounded-lg border border-zinc-200 bg-zinc-50 p-4 transition hover:border-zinc-300 hover:bg-white"
+        role="button"
+        tabindex="0"
+        data-username="{{ user.credentials.split(' / ')[0] }}"
+        data-password="demo123"
+        data-user-name="{{ user.name }}"
+      >
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0 flex-1">
             <h3 class="text-sm font-semibold leading-5 text-zinc-900">{{ user.name }}</h3>
@@ -113,4 +121,28 @@
     </div>
   </section>
 </div>
+<script>
+  const usernameInput = document.getElementById("login-username");
+  const passwordInput = document.getElementById("login-password");
+  const submitButton = document.getElementById("login-submit");
+
+  document.querySelectorAll(".demo-user-card").forEach((card) => {
+    const fillCredentials = () => {
+      if (!usernameInput || !passwordInput) return;
+      usernameInput.value = card.dataset.username || "";
+      passwordInput.value = card.dataset.password || "";
+      if (submitButton) {
+        submitButton.focus();
+      }
+    };
+
+    card.addEventListener("click", fillCredentials);
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        fillCredentials();
+      }
+    });
+  });
+</script>
 {% endblock %}
