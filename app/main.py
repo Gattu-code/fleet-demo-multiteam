@@ -794,6 +794,8 @@ def login_redirect_target(next_url: str | None = None, user: User | None = None)
 def home(request: Request):
     if request.state.current_user is None:
         return RedirectResponse(url="/login", status_code=303)
+    if request.state.current_user.role == "operator":
+        return RedirectResponse(url="/operator/vehicles", status_code=303)
     return RedirectResponse(url="/dashboard", status_code=303)
 
 
@@ -831,7 +833,6 @@ def login_submit(
         )
 
     request.session["user_id"] = user.id
-    flash_message(request, "success", f"Bienvenido, {user.username}")
     return RedirectResponse(url=login_redirect_target(next, user), status_code=303)
 
 

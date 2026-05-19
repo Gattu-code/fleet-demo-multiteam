@@ -121,11 +121,20 @@
         {% if request.state.current_user %}
         <nav class="min-w-0 flex-1 overflow-x-auto">
           <div class="flex min-w-max items-center gap-2 whitespace-nowrap">
+            {% if request.state.current_user.role == "operator" %}
+            <a href="/vehicles" class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium leading-none hover:bg-zinc-100">Flota</a>
+            <a href="/operator/vehicles" class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium leading-none hover:bg-zinc-100">Operación logística</a>
+            {% elif request.state.current_user.role == "viewer" %}
+            <a href="/dashboard" class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium leading-none hover:bg-zinc-100">Dashboard</a>
+            <a href="/vehicles" class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium leading-none hover:bg-zinc-100">Flota</a>
+            <a href="/loans" class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium leading-none hover:bg-zinc-100">Préstamos</a>
+            {% else %}
             <a href="/dashboard" class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium leading-none hover:bg-zinc-100">Dashboard</a>
             <a href="/vehicles" class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium leading-none hover:bg-zinc-100">Flota</a>
             <a href="/loans" class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium leading-none hover:bg-zinc-100">Préstamos</a>
             <a href="/operator/vehicles" class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium leading-none hover:bg-zinc-100">Operación logística</a>
-            {% if request.state.current_user.role in ["admin", "fleet_supervisor"] %}
+            {% endif %}
+            {% if request.state.current_user.role == "admin" %}
             <a href="/admin" class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium leading-none hover:bg-zinc-100">Administración</a>
             {% endif %}
           </div>
