@@ -114,36 +114,37 @@
   <body class="min-h-screen bg-zinc-50 text-zinc-950">
     <header class="border-b border-zinc-200 bg-white">
       <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4">
-        <div class="min-w-0">
+        <div class="min-w-0 shrink-0">
           <div class="text-lg font-semibold tracking-tight">FlotasMultimarca AS</div>
           <div class="text-sm text-zinc-500">Flota operativa</div>
         </div>
-        <div class="flex items-center gap-3">
-          {% if request.state.current_user %}
-          {% if request.state.current_user.role == "operator" %}
-          <a href="/operator/vehicles" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Operación logística</a>
-          {% else %}
-          <a href="/dashboard" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Dashboard</a>
-          <a href="/vehicles" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Flota</a>
-          <a href="/loans" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Prestamos</a>
-          <a href="/operator/vehicles" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Operación logística</a>
-          {% if request.state.current_user.role in ["admin", "fleet_supervisor"] %}
-          <a href="/admin" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Administracion</a>
-          <a href="/vehicles/new" class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Nuevo vehiculo</a>
-          {% endif %}
-          {% endif %}
-          <div class="flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm">
-            <span class="font-medium">{{ user_identity_label(request.state.current_user) }}</span>
+        {% if request.state.current_user %}
+        <nav class="min-w-0 flex-1 overflow-x-auto">
+          <div class="flex min-w-max items-center gap-2 whitespace-nowrap">
+            <a href="/dashboard" class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium leading-none hover:bg-zinc-100">Dashboard</a>
+            <a href="/vehicles" class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium leading-none hover:bg-zinc-100">Flota</a>
+            <a href="/loans" class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium leading-none hover:bg-zinc-100">Préstamos</a>
+            <a href="/operator/vehicles" class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium leading-none hover:bg-zinc-100">Operación logística</a>
+            {% if request.state.current_user.role in ["admin", "fleet_supervisor"] %}
+            <a href="/admin" class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium leading-none hover:bg-zinc-100">Administración</a>
+            {% endif %}
+          </div>
+        </nav>
+        <div class="flex shrink-0 items-center gap-2">
+          <div class="inline-flex h-9 items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 text-xs font-medium leading-none text-zinc-600">
+            {{ user_identity_label(request.state.current_user) }}
           </div>
           <form action="/logout" method="post">
-            <button class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100" type="submit">Salir</button>
+            <button class="inline-flex h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium leading-none hover:bg-zinc-100" type="submit">Salir</button>
           </form>
-          {% else %}
+        </div>
+        {% else %}
+        <div class="flex shrink-0 items-center gap-2">
           {% if request.url.path != "/login" %}
-          <a href="/login" class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Ingresar</a>
-          {% endif %}
+          <a href="/login" class="inline-flex h-10 items-center rounded-md bg-zinc-950 px-3 text-sm font-medium leading-none text-white hover:bg-zinc-800">Ingresar</a>
           {% endif %}
         </div>
+        {% endif %}
       </div>
     </header>
     {% if request.state.flash_messages %}

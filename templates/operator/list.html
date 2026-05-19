@@ -87,6 +87,7 @@
             </div>
           </td>
           <td class="px-4 py-3 text-right">
+            {% if request.state.current_user.role != "viewer" %}
             <div class="flex flex-wrap justify-end gap-2">
               {% if row.is_available %}
               <a href="/operator/vehicles/{{ vehicle.id }}{{ operator_query_suffix }}" class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Entregar</a>
@@ -94,6 +95,9 @@
               <a href="/operator/vehicles/{{ vehicle.id }}{{ operator_query_suffix }}" class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Registrar devolucion</a>
               {% endif %}
             </div>
+            {% else %}
+            <span class="text-zinc-400">Solo lectura</span>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}

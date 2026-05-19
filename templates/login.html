@@ -5,6 +5,7 @@
 {% set demo_users = [
   {
     "name": "Admin",
+    "role_label": "Administrador",
     "credentials": "admin / demo123",
     "scope": "Global · Todas las marcas y equipos",
     "description": "Acceso completo a configuración, operación y dashboards.",
@@ -13,6 +14,7 @@
   },
   {
     "name": "Fleet Supervisor",
+    "role_label": "Supervisor de Flotas",
     "credentials": "fleet_supervisor / demo123",
     "scope": "Global · Supervisión transversal",
     "description": "Seguimiento operativo multi-equipo y métricas consolidadas.",
@@ -21,26 +23,47 @@
   },
   {
     "name": "Coordinator Marketing Volvo",
-    "credentials": "coordinator / demo123",
+    "role_label": "Coordinador de Mercadeo",
+    "credentials": "coordinator_volvo / demo123",
     "scope": "Team scoped · Marketing Volvo",
     "description": "Opera préstamos, seguimiento y control operativo del equipo Volvo.",
     "badge": "Team scoped",
     "badge_class": "border-zinc-300 bg-zinc-100 text-zinc-700"
   },
   {
-    "name": "Operator",
-    "credentials": "operator / demo123",
-    "scope": "Team scoped · Operación",
-    "description": "Registro de entregas, devoluciones y evidencias.",
+    "name": "Operator Marketing Volvo",
+    "role_label": "Operador Logístico",
+    "credentials": "operator_volvo / demo123",
+    "scope": "Team scoped · Marketing Volvo",
+    "description": "Registro de entregas, devoluciones y evidencias del equipo Volvo.",
     "badge": "Team scoped",
     "badge_class": "border-zinc-300 bg-zinc-100 text-zinc-700"
   },
   {
-    "name": "Viewer",
-    "credentials": "viewer / demo123",
+    "name": "Viewer Marketing Volvo",
+    "role_label": "Consulta",
+    "credentials": "viewer_volvo / demo123",
     "scope": "Read only",
     "description": "Consulta de dashboards, préstamos y vehículos sin edición.",
     "badge": "Read only",
+    "badge_class": "border-zinc-300 bg-zinc-100 text-zinc-700"
+  },
+  {
+    "name": "Coordinator Marketing Peugeot",
+    "role_label": "Coordinador de Mercadeo",
+    "credentials": "coordinator_peugeot / demo123",
+    "scope": "Team scoped · Marketing Peugeot",
+    "description": "Gestiona préstamos, seguimiento y operación del equipo Peugeot.",
+    "badge": "Team scoped",
+    "badge_class": "border-zinc-300 bg-zinc-100 text-zinc-700"
+  },
+  {
+    "name": "Operator Marketing Peugeot",
+    "role_label": "Operador Logístico",
+    "credentials": "operator_peugeot / demo123",
+    "scope": "Team scoped · Marketing Peugeot",
+    "description": "Registro operativo de entregas, devoluciones y evidencias Peugeot.",
+    "badge": "Team scoped",
     "badge_class": "border-zinc-300 bg-zinc-100 text-zinc-700"
   }
 ] %}
@@ -78,7 +101,8 @@
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0 flex-1">
             <h3 class="text-sm font-semibold leading-5 text-zinc-900">{{ user.name }}</h3>
-            <p class="mt-1 text-xs font-medium text-zinc-700">{{ user.credentials }}</p>
+            <p class="mt-1 text-xs font-medium text-zinc-700">{{ user.role_label }}</p>
+            <p class="mt-1 text-xs text-zinc-600">{{ user.credentials }}</p>
           </div>
           <span class="shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium leading-none {{ user.badge_class }}">{{ user.badge }}</span>
         </div>

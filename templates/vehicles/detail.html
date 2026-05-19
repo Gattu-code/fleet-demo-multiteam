@@ -10,7 +10,9 @@
     <p class="mt-1 text-sm text-zinc-600">{{ vehicle.plate | format_plate }}{% if vehicle.year %} / {{ vehicle.year }}{% endif %}{% if vehicle.color %} / {{ vehicle.color }}{% endif %}</p>
   </div>
   <div class="flex items-center gap-3">
+    {% if request.state.current_user.role != "viewer" %}
     <a href="/vehicles/{{ vehicle.id }}/edit" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100">Editar vehiculo</a>
+    {% endif %}
     {% set display_status = "assigned" if active_loan else vehicle.status %}
     <span class="status-pill status-{{ display_status }}">
       {% if display_status == "available" %}Disponible{% elif display_status == "assigned" %}Asignado{% elif display_status == "retired" %}Retirado{% else %}{{ display_status }}{% endif %}
@@ -159,6 +161,7 @@
 {% endif %}
 
 <div class="grid gap-6 lg:grid-cols-[1fr_1fr]">
+  {% if request.state.current_user.role != "viewer" %}
   {% if vehicle.status == "available" and not active_loan %}
   <section class="rounded-lg border border-zinc-200 bg-white p-6">
     <h2 class="text-lg font-semibold">Registrar entrega / préstamo</h2>
@@ -261,6 +264,7 @@
       <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">Registrar devolucion</button>
     </form>
   </section>
+  {% endif %}
   {% endif %}
 
   <section class="rounded-lg border border-zinc-200 bg-white p-6">

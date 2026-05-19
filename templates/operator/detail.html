@@ -119,6 +119,7 @@
 </section>
 {% endif %}
 
+{% if request.state.current_user.role != "viewer" %}
 {% if vehicle.status == "available" and not active_loan %}
   <h2 class="text-lg font-semibold">Registrar entrega / préstamo</h2>
   {% if team_config and team_config.requires_delivery_photos %}
@@ -376,5 +377,6 @@
     syncOperatorIssues();
   }
 </script>
+{% endif %}
 {% endif %}
 {% endblock %}

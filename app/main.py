@@ -176,28 +176,43 @@ app.mount("/uploads", StaticFiles(directory=BASE_DIR / "uploads"), name="uploads
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
-def friendly_role_label(role: str | None) -> str:
-    role_labels = {
-        "admin": "Admin",
-        "fleet_supervisor": "Fleet Supervisor",
-        "coordinator": "Coordinator",
-        "operator": "Operator",
-        "viewer": "Viewer",
-    }
+def role_label(role: str | None, team_name: str | None = None) -> str:
     if not role:
         return "Usuario"
-    return role_labels.get(role, role.replace("_", " ").title())
+
+    if role == "admin":
+        return "Administrador"
+    if role == "fleet_supervisor":
+        return "Supervisor de Flotas"
+    if role == "operator":
+        return "Operador Logístico"
+    if role == "viewer":
+        return "Consulta"
+    if role == "coordinator":
+        if team_name and "comercial" in team_name.lower():
+            return "Coordinador Comercial"
+        if team_name and "marketing" in team_name.lower():
+            return "Coordinador de Mercadeo"
+        return "Coordinador"
+    return role.replace("_", " ").title()
 
 
 def user_identity_label(user: User | None) -> str:
     if user is None:
         return ""
     team_name = user.team.name if user.team else "Global"
-    return f"{team_name} · {friendly_role_label(user.role)}"
+    return f"{team_name} · {role_label(user.role, user.team.name if user.team else None)}"
 
 
-templates.env.globals["friendly_role_label"] = friendly_role_label
+templates.env.globals["role_label"] = role_label
 templates.env.globals["user_identity_label"] = user_identity_label
+
+
+def redirect_if_viewer(request: Request, user: User | None, url: str, message: str = "Tu perfil es de solo lectura.") -> RedirectResponse | None:
+    if user is not None and user.role == "viewer":
+        flash_message(request, "warning", message)
+        return RedirectResponse(url=url, status_code=303)
+    return None
 
 
 def normalize_plate_value(value: str | None) -> str | None:
@@ -1522,6 +1537,9 @@ def operator_vehicles(
     db: Session = Depends(get_db),
 ):
     current_user = request.state.current_user
+    blocked = redirect_if_viewer(request, current_user, "/vehicles")
+    if blocked:
+        return blocked
     plate_input = plate or request.query_params.get("plate")
     selected_plate = normalize_plate_search(plate_input)
     vehicle_query = (
@@ -1591,6 +1609,9 @@ def operator_vehicle_detail(
     current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
+    blocked = redirect_if_viewer(request, current_user, f"/vehicles/{vehicle_id}")
+    if blocked:
+        return blocked
     vehicle = db.scalar(
         select(Vehicle)
         .options(
@@ -1695,6 +1716,9 @@ def edit_vehicle(
     current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
+    blocked = redirect_if_viewer(request, current_user, f"/vehicles/{vehicle_id}")
+    if blocked:
+        return blocked
     vehicle = db.scalar(
         select(Vehicle)
         .options(
@@ -1749,6 +1773,9 @@ def update_vehicle(
     current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
+    blocked = redirect_if_viewer(request, current_user, f"/vehicles/{vehicle_id}")
+    if blocked:
+        return blocked
     vehicle = db.scalar(
         select(Vehicle)
         .options(selectinload(Vehicle.loans))
@@ -1859,6 +1886,9 @@ def transfer_vehicle(
     current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
+    blocked = redirect_if_viewer(request, current_user, f"/vehicles/{vehicle_id}")
+    if blocked:
+        return blocked
     vehicle = db.scalar(
         select(Vehicle)
         .options(
@@ -1955,6 +1985,9 @@ def deliver_vehicle(
     current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
+    blocked = redirect_if_viewer(request, current_user, f"/vehicles/{vehicle_id}")
+    if blocked:
+        return blocked
     vehicle = db.scalar(
         select(Vehicle)
         .options(
@@ -2025,6 +2058,9 @@ def edit_delivery(
     current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
+    blocked = redirect_if_viewer(request, current_user, f"/loans/{loan_id}")
+    if blocked:
+        return blocked
     loan = db.scalar(
         select(Loan)
         .options(selectinload(Loan.assets), selectinload(Loan.vehicle))
@@ -2070,6 +2106,9 @@ def update_delivery(
     current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
+    blocked = redirect_if_viewer(request, current_user, f"/loans/{loan_id}")
+    if blocked:
+        return blocked
     loan = db.scalar(
         select(Loan)
         .options(
@@ -2130,6 +2169,9 @@ def update_loan_category(
     current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
+    blocked = redirect_if_viewer(request, current_user, "/loans")
+    if blocked:
+        return blocked
     loan = db.get(Loan, loan_id)
     if loan is None:
         flash_message(request, "error", "El prestamo no existe.")
@@ -2171,6 +2213,9 @@ def return_vehicle(
     current_user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
+    blocked = redirect_if_viewer(request, current_user, f"/loans/{loan_id}")
+    if blocked:
+        return blocked
     loan = db.scalar(
         select(Loan)
         .options(

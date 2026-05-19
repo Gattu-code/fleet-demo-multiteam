@@ -27,14 +27,15 @@ UPLOAD_DIR = BASE_DIR / "uploads"
 DEMO_USERS = [
     {"username": "admin", "role": "admin", "password": "demo123", "team_name": None},
     {"username": "fleet_supervisor", "role": "fleet_supervisor", "password": "demo123", "team_name": None},
-    {"username": "coordinator", "role": "coordinator", "password": "demo123", "team_name": "Marketing Volvo"},
-    {"username": "operator", "role": "operator", "password": "demo123", "team_name": "Operaciones Demo"},
-    {"username": "viewer", "role": "viewer", "password": "demo123", "team_name": "Administrativo"},
+    {"username": "coordinator_volvo", "role": "coordinator", "password": "demo123", "team_name": "Marketing Volvo"},
+    {"username": "operator_volvo", "role": "operator", "password": "demo123", "team_name": "Marketing Volvo"},
+    {"username": "viewer_volvo", "role": "viewer", "password": "demo123", "team_name": "Marketing Volvo"},
+    {"username": "coordinator_peugeot", "role": "coordinator", "password": "demo123", "team_name": "Marketing Peugeot"},
+    {"username": "operator_peugeot", "role": "operator", "password": "demo123", "team_name": "Marketing Peugeot"},
 ]
 
 DEMO_TEAMS = [
     "Marketing Volvo",
-    "Marketing Hyundai",
     "Marketing Peugeot",
     "Comercial A",
     "Operaciones Demo",
@@ -57,15 +58,11 @@ LOAN_CATEGORY_NAMES = [
 
 DEMO_VEHICLE_TEAMS = {
     "VOL-101": "Marketing Volvo",
-    "VOL-202": "Marketing Hyundai",
-    "VOL-303": "Marketing Peugeot",
     "VOL-404": "Marketing Volvo",
     "VOL-505": "Marketing Volvo",
-    "VOL-606": "Marketing Peugeot",
     "VOL-707": "Marketing Volvo",
     "VOL-808": "Marketing Volvo",
     "VOL-909": "Marketing Volvo",
-    "HYU-303": "Marketing Hyundai",
     "PEU-404": "Marketing Peugeot",
     "PEU-606": "Marketing Peugeot",
     "OPS-101": "Operaciones Demo",
@@ -77,12 +74,6 @@ TEAM_CONFIG_DEFAULTS = {
         "requires_delivery_photos": True,
         "requires_return_photos": True,
         "default_loan_category": "Evento / activacion",
-    },
-    "Marketing Hyundai": {
-        "allows_transfers": True,
-        "requires_delivery_photos": True,
-        "requires_return_photos": False,
-        "default_loan_category": "Produccion de contenido",
     },
     "Marketing Peugeot": {
         "allows_transfers": True,
@@ -329,6 +320,9 @@ def add_asset(db, loan, category, path, filename, content_type):
 
 
 def ensure_default_users(db):
+    obsolete_usernames = {"coordinator", "operator", "viewer"}
+    for user in db.scalars(select(User).where(User.username.in_(obsolete_usernames))).all():
+        db.delete(user)
     for user_data in DEMO_USERS:
         user = db.scalar(select(User).where(User.username == user_data["username"]))
         team = ensure_team(db, user_data["team_name"]) if user_data["team_name"] else None
@@ -478,39 +472,6 @@ def seed():
                 "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-909"])).id,
             },
             {
-                "brand": "Hyundai",
-                "model": "IONIQ 5",
-                "year": 2025,
-                "plate": "VOL-202",
-                "color": "Gravity Gold",
-                "status": "assigned",
-                "has_open_issue": False,
-                "reference_image_path": vehicle_image_path,
-                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-202"])).id,
-            },
-            {
-                "brand": "Peugeot",
-                "model": "e-2008",
-                "year": 2024,
-                "plate": "VOL-303",
-                "color": "Vertigo Blue",
-                "status": "available",
-                "has_open_issue": True,
-                "reference_image_path": vehicle_image_path,
-                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-303"])).id,
-            },
-            {
-                "brand": "Hyundai",
-                "model": "Tucson",
-                "year": 2024,
-                "plate": "HYU-303",
-                "color": "Ecotronic Gray",
-                "status": "available",
-                "has_open_issue": False,
-                "reference_image_path": vehicle_image_path,
-                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["HYU-303"])).id,
-            },
-            {
                 "brand": "Peugeot",
                 "model": "e-2008",
                 "year": 2024,
@@ -525,20 +486,9 @@ def seed():
                 "brand": "Peugeot",
                 "model": "3008",
                 "year": 2025,
-                "plate": "VOL-606",
-                "color": "Pearl White",
-                "status": "available",
-                "has_open_issue": False,
-                "reference_image_path": vehicle_image_path,
-                "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["VOL-606"])).id,
-            },
-            {
-                "brand": "Peugeot",
-                "model": "3008",
-                "year": 2025,
                 "plate": "PEU-606",
                 "color": "Pearl White",
-                "status": "available",
+                "status": "assigned",
                 "has_open_issue": False,
                 "reference_image_path": vehicle_image_path,
                 "team_id": db.scalar(select(Team).where(Team.name == DEMO_VEHICLE_TEAMS["PEU-606"])).id,
@@ -615,12 +565,8 @@ def seed():
             "VOL-101",
             "VOL-404",
             "VOL-505",
-            "VOL-808",
             "VOL-909",
-            "VOL-202",
-            "VOL-303",
-            "VOL-606",
-            "HYU-303",
+            "VOL-808",
             "PEU-404",
             "PEU-606",
             "OPS-101",
@@ -629,12 +575,8 @@ def seed():
             "VOL-101": 9000,
             "VOL-404": 10000,
             "VOL-505": 12000,
-            "VOL-808": 14200,
             "VOL-909": 15800,
-            "VOL-202": 18000,
-            "VOL-303": 15000,
-            "VOL-606": 16000,
-            "HYU-303": 13000,
+            "VOL-808": 14200,
             "PEU-404": 15000,
             "PEU-606": 16000,
             "OPS-101": 7600,
@@ -703,11 +645,40 @@ def seed():
                 add_asset(db, loan, "return_issue", issue_path, "novedad-demo.png", "image/png")
                 ensure_operational_issues(db, loan)
 
+        peugeot_vehicle = created["PEU-606"]
+        if not any(loan.returned_at is None for loan in peugeot_vehicle.loans):
+            active_peugeot_loan = Loan(
+                vehicle_id=peugeot_vehicle.id,
+                team_id=peugeot_vehicle.team_id,
+                borrower_name="Lucia Fernandez",
+                phone="+57 300 555 8899",
+                email="lucia.fernandez@example.com",
+                instagram="@luciafernandez",
+                loan_category="Prensa / medios",
+                delivery_operator="Camila Duarte",
+                return_operator=None,
+                delivery_mileage=17150,
+                return_mileage=None,
+                fuel_level="3/4",
+                notes="Prestamo activo demo para Marketing Peugeot.",
+                agreement_signed=True,
+                return_has_issues=False,
+                delivered_at=now - timedelta(days=1, hours=3),
+                returned_at=None,
+            )
+            db.add(active_peugeot_loan)
+            db.flush()
+            ensure_loan_checklist_items(db, active_peugeot_loan)
+            add_asset(db, active_peugeot_loan, "agreement", agreement_path, "comodato-demo.pdf", "application/pdf")
+            add_asset(db, active_peugeot_loan, "delivery", delivery_path, "entrega-demo.png", "image/png")
+            peugeot_vehicle.status = "assigned"
+
         active_plates = {
             item["plate"]
             for item in demo_loans
             if item["returned_at"] is None
         }
+        active_plates.add("PEU-606")
         issue_plates = {
             item["plate"]
             for item in demo_loans
